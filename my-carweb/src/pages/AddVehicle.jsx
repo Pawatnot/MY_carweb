@@ -4,22 +4,24 @@ import { useNavigate } from 'react-router-dom';
 
 const AddVehicle = () => {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
-
-  // 1. เพิ่ม State สำหรับเก็บไฟล์รูปภาพ
+  
+  // ✅ 1. เปลี่ยนมาใช้ State เก็บ userId แทน
+  const [userId, setUserId] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
 
   const [formData, setFormData] = useState({
     Brand: '',
     Model: '',
     vehicle_registration: '',
-    Vehicle_Type: 'รถยนต์ส่วนบุคคล'
+    Vehicle_Type: 'รถยนต์ส่วนบุคคล' // ตั้งค่าเริ่มต้นให้ตรงกับตัวเลือกแรก
   });
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
+    // ✅ 2. ดึง user_id จาก localStorage (ตามที่เราเซฟไว้ในหน้า Login)
+    const storedUserId = localStorage.getItem('user_id');
+    
+    if (storedUserId) {
+      setUserId(storedUserId);
     } else {
       alert("กรุณาเข้าสู่ระบบก่อนเพิ่มรถ");
       navigate('/login');
@@ -30,33 +32,33 @@ const AddVehicle = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // 2. ฟังก์ชันเมื่อมีการเลือกไฟล์
   const handleFileChange = (e) => {
-    // เก็บไฟล์ตัวจริงไว้ใน State (e.target.files[0] คือไฟล์แรกที่เลือก)
     setSelectedFile(e.target.files[0]);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!user) return;
+    
+    // กันเหนียว ถ้าไม่มี userId ให้เด้งกลับไปล็อกอินใหม่
+    if (!userId) {
+        alert("ไม่พบข้อมูลผู้ใช้งาน กรุณาล็อกอินใหม่อีกครั้ง");
+        return;
+    }
 
     try {
-      // 3. สร้าง FormData (ซองเอกสารสำหรับส่งไฟล์)
       const data = new FormData();
       
-      // ยัดข้อมูลตัวหนังสือลงซอง
-      data.append('User_id', user.User_id);
+      // ✅ 3. แนบ User_id ของคนที่ล็อกอินอยู่ใส่ลงไปในฟอร์มด้วย
+      data.append('User_id', userId); 
       data.append('Brand', formData.Brand);
       data.append('Model', formData.Model);
       data.append('vehicle_registration', formData.vehicle_registration);
       data.append('Vehicle_Type', formData.Vehicle_Type);
 
-      // ยัดไฟล์รูปภาพลงซอง (ถ้ามีการเลือก)
       if (selectedFile) {
         data.append('image', selectedFile); 
       }
 
-      // 4. ส่งไปที่ Backend (ต้องกำหนด header เป็น multipart/form-data)
       await axios.post('http://localhost:5000/vehicles', data, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
@@ -74,7 +76,6 @@ const AddVehicle = () => {
       <h2 style={{ color: '#2c3e50', marginBottom: '20px' }}> เพิ่มรถคันใหม่</h2>
       
       <form onSubmit={handleSubmit} style={styles.form}>
-        {/* ... ช่องกรอกข้อความอื่นๆ เหมือนเดิม ... */}
         <div style={styles.formGroup}>
           <label style={styles.label}>ยี่ห้อ (Brand)</label>
           <input type="text" name="Brand" required onChange={handleChange} style={styles.input} />
@@ -93,19 +94,18 @@ const AddVehicle = () => {
         <div style={styles.formGroup}>
           <label style={styles.label}>ประเภทรถ</label>
           <select name="Vehicle_Type" onChange={handleChange} style={styles.select}>
-            <option value="รถเก๋ง">รถเก๋ง</option>
+            <option value="รถยนต์ส่วนบุคคล">รถยนต์ส่วนบุคคล</option>
             <option value="รถจักรยานยนต์">รถจักรยานยนต์</option>
             <option value="รถกระบะ">รถกระบะ</option>
             <option value="อื่นๆ">อื่นๆ</option>
           </select>
         </div>
 
-        {/* 5. เพิ่มช่อง Input สำหรับเลือกไฟล์ */}
         <div style={styles.formGroup}>
-          <label style={styles.label}>รูปภาพรถ (ถ้ามี)</label>
+          <label style={styles.label}>รูปภาพรถ</label>
           <input 
             type="file" 
-            accept="image/*" // บังคับให้เลือกได้เฉพาะไฟล์รูป
+            accept="image/*" 
             onChange={handleFileChange} 
             style={styles.input} 
           />

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -8,21 +8,29 @@ const Login = () => {
     Password: ''
   });
   
-  // const navigate = useNavigate(); // ไม่จำเป็นต้องใช้ navigate แล้ว เพราะเราจะใช้ window.location
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      // 1. ยิงข้อมูลไปตรวจสอบ
+      // 1. ยิงข้อมูลไปตรวจสอบกับหลังบ้าน
       const response = await axios.post('http://localhost:5000/login', formData);
       
-      // 2. บันทึก User ลงเครื่อง
-      localStorage.setItem('user', JSON.stringify(response.data.user)); 
-      
-      alert("เข้าสู่ระบบสำเร็จ! ยินดีต้อนรับ " + response.data.user.Name);
-      
-      // 3. ✅ ใช้คำสั่งนี้เพื่อเปลี่ยนหน้า + รีโหลด Navbar ให้โชว์ชื่อทันที
-      window.location.href = '/'; 
+      if (response.data.status === 'success') {
+        // 2. ✅ บันทึกข้อมูลลงเครื่อง (ปรับให้ตรงกับ Backend ใหม่)
+        localStorage.setItem('user_id', response.data.user_id);
+        localStorage.setItem('name', response.data.name);
+        
+        // 🌟 บรรทัดนี้สำคัญมาก: เก็บสิทธิ์ is_admin (0 หรือ 1) ไว้ใช้ซ่อน/โชว์เมนู
+        localStorage.setItem('is_admin', response.data.is_admin); 
+
+        // (แถม) เก็บแบบเก่าเผื่อ Navbar หรือหน้าอื่นของน๊อตยังเรียกใช้แบบเดิมอยู่ จะได้ไม่พังครับ
+        const userData = { Name: response.data.name, is_admin: response.data.is_admin };
+        localStorage.setItem('user', JSON.stringify(userData)); 
+        
+        alert("เข้าสู่ระบบสำเร็จ! ยินดีต้อนรับ " + response.data.name);
+        
+        // 3. เปลี่ยนหน้า + รีโหลดเพื่อให้อัปเดตข้อมูล
+        window.location.href = '/'; 
+      }
 
     } catch (error) {
       alert("อีเมลหรือรหัสผ่านไม่ถูกต้อง กรุณาลองใหม่");

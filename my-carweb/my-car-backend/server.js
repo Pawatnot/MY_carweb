@@ -24,10 +24,10 @@ const db = mysql.createConnection({
 // ตรวจสอบการเชื่อมต่อ
 db.connect(err => {
     if (err) {
-        console.error('❌ เชื่อมต่อฐานข้อมูลล้มเหลว:', err);
+        console.error(' เชื่อมต่อฐานข้อมูลล้มเหลว:', err);
         return;
     }
-    console.log('✅ เชื่อมต่อ MySQL สำเร็จแล้ว!');
+    console.log(' เชื่อมต่อ MySQL สำเร็จแล้ว!');
 });
 
 // ==========================================
@@ -60,8 +60,23 @@ app.get('/members', (req, res) => {
 
 // 2. API ดึงรายการรถทั้งหมด
 app.get('/vehicles', (req, res) => {
-    const sql = "SELECT * FROM vehicle";
-    db.query(sql, (err, results) => {
+    // รับค่า user_id และ is_admin ที่หน้าบ้านส่งมาถาม
+    const userId = req.query.user_id;
+    const isAdmin = req.query.is_admin;
+
+    let sql = "";
+    let params = [];
+
+    if (isAdmin === '1') {
+        // ✅ ถ้าเป็น Admin -> ให้ดึงมาโชว์ทุกคันเลย
+        sql = "SELECT * FROM vehicle";
+    } else {
+        // ✅ ถ้าเป็น User ธรรมดา -> ให้ดึงมาเฉพาะคันที่มี User_id ตรงกับของตัวเอง
+        sql = "SELECT * FROM vehicle WHERE User_id = ?";
+        params = [userId];
+    }
+
+    db.query(sql, params, (err, results) => {
         if (err) return res.status(500).json(err);
         res.json(results);
     });
@@ -86,7 +101,7 @@ app.post('/register', (req, res) => {
     });
 });
 
-// 4. API เข้าสู่ระบบ (Login)
+// 4. API เข้าสู่ระบบ (Login) ✅ (ปรับแก้ตรงนี้เพื่อส่ง is_admin กลับไป)
 app.post('/login', (req, res) => {
     const { Email, Password } = req.body;
 
@@ -96,28 +111,30 @@ app.post('/login', (req, res) => {
         if (err) return res.status(500).json({ message: "เกิดข้อผิดพลาดที่เซิร์ฟเวอร์" });
         
         if (results.length > 0) {
-            res.json({ message: "เข้าสู่ระบบสำเร็จ", user: results[0] });
+            const user = results[0];
+            // ส่งค่ากลับไปในรูปแบบที่เราเตรียมไว้
+            res.json({ 
+                status: 'success',
+                message: "เข้าสู่ระบบสำเร็จ", 
+                user_id: user.User_id,
+                name: user.Name,
+                is_admin: user.is_admin // ✅ ส่งสถานะแอดมินกลับไปด้วย!
+            });
         } else {
             res.status(401).json({ message: "อีเมลหรือรหัสผ่านไม่ถูกต้อง" });
         }
     });
 });
 
-// 5. API เพิ่มรถใหม่ + รูปภาพ (Add Vehicle) ✅ ของใหม่
-// ใช้ upload.single('image') เพื่อรับไฟล์ชื่อ 'image'
+// 5. API เพิ่มรถใหม่ + รูปภาพ (Add Vehicle)
 app.post('/vehicles', upload.single('image'), (req, res) => {
-    // ข้อมูลตัวหนังสือจะอยู่ใน req.body
     const { User_id, Brand, Model, vehicle_registration, Vehicle_Type } = req.body;
-    
-    // ข้อมูลไฟล์จะอยู่ใน req.file (ถ้ามี)
     const Vehicle_image = req.file ? req.file.filename : null; 
 
-    // เช็คข้อมูลจำเป็น (รูปภาพเป็น Optional ไม่ต้องเช็คก็ได้)
     if (!User_id || !Brand || !Model || !vehicle_registration || !Vehicle_Type) {
         return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบถ้วน" });
     }
 
-    // เพิ่ม Vehicle_image เข้าไปใน SQL
     const sql = "INSERT INTO vehicle (User_id, Brand, Model, vehicle_registration, Vehicle_Type, Vehicle_image) VALUES (?, ?, ?, ?, ?, ?)";
     
     db.query(sql, [User_id, Brand, Model, vehicle_registration, Vehicle_Type, Vehicle_image], (err, result) => {
@@ -140,22 +157,19 @@ app.delete('/vehicles/:id', (req, res) => {
     });
 });
 
-// 7. API แก้ไขรถ (Update) - รองรับการอัปโหลดรูปใหม่ด้วย
+// 7. API แก้ไขรถ (Update)
 app.put('/vehicles/:id', upload.single('image'), (req, res) => {
     const id = req.params.id;
     const { Brand, Model, vehicle_registration, Vehicle_Type } = req.body;
     let newImage = req.file ? req.file.filename : null;
 
-    // ถ้ามีการอัปรูปใหม่ ให้ใช้รูปใหม่ แต่ถ้าไม่มี ให้ใช้รูปเดิม (ต้องเขียน SQL แยกนิดหน่อย)
     let sql = "";
     let params = [];
 
     if (newImage) {
-        // กรณีเปลี่ยนรูป
         sql = "UPDATE vehicle SET Brand=?, Model=?, vehicle_registration=?, Vehicle_Type=?, Vehicle_image=? WHERE Vehicle_id=?";
         params = [Brand, Model, vehicle_registration, Vehicle_Type, newImage, id];
     } else {
-        // กรณีไม่เปลี่ยนรูป (ไม่ต้องอัปเดต Vehicle_image)
         sql = "UPDATE vehicle SET Brand=?, Model=?, vehicle_registration=?, Vehicle_Type=? WHERE Vehicle_id=?";
         params = [Brand, Model, vehicle_registration, Vehicle_Type, id];
     }

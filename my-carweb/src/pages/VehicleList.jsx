@@ -14,7 +14,17 @@ const VehicleList = () => {
   }, []);
 
   const fetchVehicles = () => {
-    axios.get('http://localhost:5000/vehicles')
+    // ✅ 1. ดึงไอดีและสิทธิ์จาก localStorage ของคนที่กำลังล็อกอินอยู่
+    const userId = localStorage.getItem('user_id');
+    const isAdmin = localStorage.getItem('is_admin');
+
+    // ✅ 2. ส่งค่าพารามิเตอร์ (params) ไปให้หลังบ้านด้วย
+    axios.get('http://localhost:5000/vehicles', {
+      params: { 
+        user_id: userId, 
+        is_admin: isAdmin 
+      }
+    })
       .then(response => {
         setCars(response.data);
         setLoading(false);

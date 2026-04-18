@@ -6,6 +6,10 @@ const Sidebar = () => {
   const location = useLocation();
   const isActive = (path) => location.pathname === path;
 
+  // ✅ 1. ดึงค่าสิทธิ์แอดมินออกมาจาก localStorage
+  // ถ้าล็อคอินด้วยไอดีที่เป็นแอดมิน (is_admin = 1) ตัวแปรนี้จะเป็น true
+  const isAdmin = localStorage.getItem('is_admin') === '1';
+
   return (
     <div style={styles.sidebar}>
       <div style={styles.logoContainer}>
@@ -17,6 +21,9 @@ const Sidebar = () => {
       </div>
 
       <ul style={styles.menuList}>
+        {/* ==========================================
+            เมนูส่วนนี้ "ทุกคน" (User ปกติ และ Admin) จะเห็นหมด
+            ========================================== */}
         <li>
           <Link to="/" style={isActive('/') ? styles.activeLink : styles.link}>
             Dashboard
@@ -37,17 +44,22 @@ const Sidebar = () => {
             กำหนดการ
           </Link>
         </li>
-        {/* <li>
-          <Link to="/maintenance" style={isActive('/maintenance') ? styles.activeLink : styles.link}>
-             การซ่อมบำรุง
-          </Link>
-        </li> */}
-        {/* <li>
-          <Link to="/documents" style={isActive('/documents') ? styles.activeLink : styles.link}>
-             เอกสาร
-          </Link>
-        </li> */}
-        <hr style={{ borderColor: '#34495e', margin: '20px 0' }} />
+        
+        {/* ==========================================
+            ✅ 2. เมนูส่วนนี้จะโชว์ "เฉพาะ Admin" เท่านั้น!
+            ========================================== */}
+        {isAdmin && (
+          <>
+            <hr style={{ borderColor: '#34495e', margin: '20px 0' }} />
+            <li>
+              <Link to="/manage-users" style={isActive('/manage-users') ? styles.activeLink : styles.link}>
+                 จัดการผู้ใช้งาน
+              </Link>
+            </li>
+            {/* ถ้าน๊อตมีหน้าอื่นที่อยากให้เฉพาะแอดมินเห็น ก็เอามาใส่ในปีกกานี้ได้เลยครับ */}
+          </>
+        )}
+
       </ul>
     </div>
   );
@@ -60,18 +72,16 @@ const styles = {
     padding: '20px', 
     backgroundColor: '#1a252f', 
     textAlign: 'center',
-    // เพิ่ม flex เพื่อจัดกลางรูปให้สวยงาม
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    minHeight: '80px' // กำหนดความสูงขั้นต่ำไว้หน่อย
+    minHeight: '80px' 
   },
   
-  // ✅ 3. เพิ่ม Style ให้รูปโลโก้
   logoImage: {
-    maxWidth: '100%',   // ไม่ให้รูปใหญ่เกินกรอบ
-    height: 'auto',     // ให้สูงตามสัดส่วน
-    maxHeight: '100px',  // จำกัดความสูงไม่ให้กินที่เมนูมากเกินไป (ปรับเลขนี้ได้ตามใจชอบ)
+    maxWidth: '100%',  
+    height: 'auto',    
+    maxHeight: '100px',  
     objectFit: 'contain'
   },
 
