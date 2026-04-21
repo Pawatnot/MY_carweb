@@ -194,13 +194,40 @@ app.get('/expenses', (req, res) => {
     });
 });
 
+// 2. API บันทึกรายจ่ายใหม่ลงตาราง
 app.post('/expenses', (req, res) => {
     const { Vehicle_id, Amount_of_money, expenses_type_id, Expense_Date, payment_status, Detail } = req.body;
+    
+    // ✅ จุดที่แก้: ถ้าไม่ได้ส่ง Expense_Date มา (หรือเป็นค่าว่าง) ให้กลายเป็น null
+    const finalDate = Expense_Date ? Expense_Date : null;
+    
     const sql = "INSERT INTO vehicle_expenses (Vehicle_id, Amount_of_money, expenses_type_id, Expense_Date, payment_status, Detail) VALUES (?, ?, ?, ?, ?, ?)";
     
-    db.query(sql, [Vehicle_id, Amount_of_money, expenses_type_id, Expense_Date, payment_status, Detail], (err, result) => {
-        if (err) return res.status(500).json({ message: "เกิดข้อผิดพลาดในการบันทึก" });
+    db.query(sql, [Vehicle_id, Amount_of_money, expenses_type_id, finalDate, payment_status, Detail], (err, result) => {
+        if (err) {
+            console.error("Error POST expenses:", err);
+            return res.status(500).json({ message: "เกิดข้อผิดพลาดในการบันทึก" });
+        }
         res.status(201).json({ message: "บันทึกรายจ่ายสำเร็จ!" });
+    });
+});
+
+// 3. API อัปเดตสถานะการจ่ายเงินจากหน้า Card
+app.put('/expenses/:id/status', (req, res) => {
+    const id = req.params.id;
+    const { payment_status, Expense_Date } = req.body;
+
+    // ถ้ายังไม่จ่าย (0) ให้แปลงวันที่เป็น null
+    const finalDate = (payment_status === 1 && Expense_Date) ? Expense_Date : null;
+
+    const sql = "UPDATE vehicle_expenses SET payment_status = ?, Expense_Date = ? WHERE Expenses_id = ?";
+    
+    db.query(sql, [payment_status, finalDate, id], (err, result) => {
+        if (err) {
+            console.error("Error updating status:", err);
+            return res.status(500).json({ message: "เกิดข้อผิดพลาดในการอัปเดต" });
+        }
+        res.json({ message: "อัปเดตสถานะสำเร็จ!" });
     });
 });
 
