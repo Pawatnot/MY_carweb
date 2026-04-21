@@ -231,6 +231,51 @@ app.put('/expenses/:id/status', (req, res) => {
     });
 });
 
+// ==========================================
+// 📌 ระบบกำหนดการ (Vehicle_Schedules)
+// ==========================================
+
+// 1. ดึงข้อมูลกำหนดการทั้งหมด (แสดงพร้อมทะเบียนรถ)
+app.get('/schedules', (req, res) => {
+  const userId = req.query.user_id;
+  const isAdmin = req.query.is_admin;
+
+  // JOIN ตารางรถ เพื่อเอาทะเบียน (vehicle_registration) มาโชว์
+  let sql = `
+    SELECT s.*, v.vehicle_registration, v.Brand, v.Model 
+    FROM Vehicle_Schedules s
+    JOIN Vehicle v ON s.Vehicle_id = v.Vehicle_id
+  `;
+  let params = [];
+
+  // ถ้าไม่ใช่ Admin ให้ดูได้เฉพาะรถของตัวเอง
+  if (isAdmin !== '1') {
+    sql += ` WHERE v.User_id = ?`;
+    params.push(userId);
+  }
+  
+  // เรียงลำดับจากวันที่ใกล้หมดอายุก่อน (อันไหนจะหมดอายุให้อยู่บนสุด)
+  sql += ` ORDER BY s.Expiry_Date ASC`;
+
+  db.query(sql, params, (err, results) => {
+    if (err) return res.status(500).json(err);
+    res.json(results);
+  });
+});
+
+// 2. เพิ่มกำหนดการใหม่ (Manual)
+app.post('/schedules', (req, res) => {
+  const { Vehicle_id, expenses_id, Item_Name, Expiry_Date } = req.body;
+  
+  // expenses_id สามารถเป็น null ได้ถ้าเราเพิ่มแบบ manual โดยไม่ผ่านหน้ารายจ่าย
+  const sql = "INSERT INTO Vehicle_Schedules (Vehicle_id, expenses_id, Item_Name, Expiry_Date) VALUES (?, ?, ?, ?)";
+  
+  db.query(sql, [Vehicle_id, expenses_id || null, Item_Name, Expiry_Date], (err, result) => {
+    if (err) return res.status(500).json(err);
+    res.json({ message: "เพิ่มกำหนดการสำเร็จ", id: result.insertId });
+  });
+});
+
 const PORT = 5000;
 app.listen(PORT, () => {
     console.log(`🚀 Server is running on port ${PORT}`);
