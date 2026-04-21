@@ -7,6 +7,11 @@ const Expenses = () => {
   
   const [showCategoryModal, setShowCategoryModal] = useState(false); 
   const [showExpenseModal, setShowExpenseModal] = useState(false);   
+  
+  // ✅ State สำหรับหน้าต่างยืนยันวันที่จ่ายเงินจาก Card
+  const [showDateModal, setShowDateModal] = useState(false);
+  const [payingExpenseId, setPayingExpenseId] = useState(null);
+  const [payingDate, setPayingDate] = useState('');
 
   const [categories, setCategories] = useState([]);
   const [myVehicles, setMyVehicles] = useState([]); 
@@ -83,8 +88,44 @@ const Expenses = () => {
     } catch (error) { alert("❌ เกิดข้อผิดพลาดในการบันทึกรายจ่าย"); }
   };
 
-  const togglePaidStatus = (id) => {
-    alert("เดี๋ยวเรามาทำระบบอัปเดต Checkbox ลง Database รอบหน้านะครับ!");
+  // ==========================================
+  // ✅ ระบบอัปเดตสถานะจาก Card
+  // ==========================================
+  const togglePaidStatus = async (exp) => {
+    if (exp.payment_status === 1) {
+      // ถ้าจ่ายแล้ว แล้วกดติ๊กออก (เปลี่ยนเป็นยังไม่จ่าย) ให้ทำทันทีโดยลบวันที่ทิ้ง
+      try {
+        await axios.put(`http://localhost:5000/expenses/${exp.Expenses_id}/status`, {
+          payment_status: 0,
+          Expense_Date: null
+        });
+        fetchExpensesList(userId, isAdmin ? '1' : '0'); // โหลดข้อมูลใหม่
+      } catch (error) {
+        console.error(error);
+        alert("❌ เกิดข้อผิดพลาดในการอัปเดตสถานะ");
+      }
+    } else {
+      // ถ้ายังไม่จ่าย พอกดปุ๊บ ให้เปิดหน้าต่างถามวันที่
+      setPayingExpenseId(exp.Expenses_id);
+      setPayingDate('');
+      setShowDateModal(true);
+    }
+  };
+
+  // ✅ ฟังก์ชันตอนกดยืนยันวันที่ในหน้าต่างเล็ก
+  const handleConfirmPayment = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.put(`http://localhost:5000/expenses/${payingExpenseId}/status`, {
+        payment_status: 1,
+        Expense_Date: payingDate
+      });
+      setShowDateModal(false); // ปิดหน้าต่าง
+      fetchExpensesList(userId, isAdmin ? '1' : '0'); // โหลดข้อมูลใหม่
+    } catch (error) {
+      console.error(error);
+      alert("❌ เกิดข้อผิดพลาดในการอัปเดตสถานะ");
+    }
   };
 
   const formatDate = (dateString) => {
@@ -120,14 +161,46 @@ const Expenses = () => {
                 📝 หมายเหตุ: {exp.Detail || '-'}
               </p>
 
-              <p style={{ margin: '5px 0 15px 0', color: '#7f8c8d', fontSize: '14px' }}>📅 กำหนดชำระ: {formatDate(exp.Expense_Date)}</p>
+              {exp.payment_status === 1 ? (
+                <p style={{ margin: '5px 0 15px 0', color: '#27ae60', fontSize: '14px', fontWeight: 'bold' }}>
+                  📅 วันที่ชำระเงิน: {formatDate(exp.Expense_Date)}
+                </p>
+              ) : (
+                <p style={{ margin: '5px 0 15px 0', color: '#e74c3c', fontSize: '14px', fontWeight: 'bold' }}>
+                  ⏳ ยังไม่ได้ชำระเงิน
+                </p>
+              )}
+
               <hr style={{ borderTop: '1px dashed #ecf0f1', margin: '10px 0' }}/>
               <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontWeight: 'bold', color: exp.payment_status === 1 ? '#27ae60' : '#e74c3c' }}>
-                <input type="checkbox" checked={exp.payment_status === 1} onChange={() => togglePaidStatus(exp.Expenses_id)} style={{ transform: 'scale(1.5)' }} />
+                {/* ✅ แก้ฟังก์ชันตรง Checkbox ให้ส่งค่า exp เข้าไปทั้งก้อน */}
+                <input type="checkbox" checked={exp.payment_status === 1} onChange={() => togglePaidStatus(exp)} style={{ transform: 'scale(1.5)' }} />
                 {exp.payment_status === 1 ? '✅ จ่ายแล้ว' : '❌ ยังไม่จ่าย'}
               </label>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ==========================================
+          ✅ Modal: ถามวันที่เมื่อกด Checkbox จ่ายเงินจาก Card
+          ========================================== */}
+      {showDateModal && (
+        <div style={styles.modalOverlay} onClick={() => setShowDateModal(false)}>
+          <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0, borderBottom: '2px solid #27ae60', paddingBottom: '10px', color: '#2c3e50' }}>ยืนยันการชำระเงิน</h3>
+            <p style={{ color: '#7f8c8d', fontSize: '14px' }}>กรุณาระบุวันที่คุณทำการชำระเงินรายการนี้</p>
+            
+            <form onSubmit={handleConfirmPayment} style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
+              <div>
+                <input type="date" required value={payingDate} onChange={e => setPayingDate(e.target.value)} style={styles.input}/>
+              </div>
+              <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                <button type="submit" style={{...styles.submitBtn, backgroundColor: '#27ae60'}}>บันทึกสถานะ</button>
+                <button type="button" onClick={() => setShowDateModal(false)} style={styles.cancelBtn}>ยกเลิก</button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
@@ -155,11 +228,23 @@ const Expenses = () => {
               </div>
               <div><label style={styles.label}>3. จำนวนเงิน (บาท)</label><input type="number" required min="0" style={styles.input} onChange={e => setExpenseForm({...expenseForm, Amount_of_money: e.target.value})}/></div>
               <div><label style={styles.label}>4. รายละเอียดเพิ่มเติม</label><input type="text" placeholder="เช่น เปลี่ยนที่ร้าน ABC, โอนผ่านแบงค์" style={styles.input} onChange={e => setExpenseForm({...expenseForm, Detail: e.target.value})}/></div>
-              <div><label style={styles.label}>5. วันที่ชำระเงิน</label><input type="date" required style={styles.input} onChange={e => setExpenseForm({...expenseForm, Expense_Date: e.target.value})}/></div>
+              
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginTop: '10px' }}>
-                <input type="checkbox" style={{ transform: 'scale(1.2)' }} onChange={e => setExpenseForm({...expenseForm, payment_status: e.target.checked ? 1 : 0})}/>
-                <span style={{fontWeight: 'bold'}}>ชำระเงินเรียบร้อยแล้ว</span>
+                <input 
+                  type="checkbox" 
+                  style={{ transform: 'scale(1.2)' }} 
+                  onChange={e => setExpenseForm({...expenseForm, payment_status: e.target.checked ? 1 : 0, Expense_Date: ''})} 
+                />
+                <span style={{fontWeight: 'bold', color: '#34495e'}}>ชำระเงินเรียบร้อยแล้ว</span>
               </label>
+
+              {expenseForm.payment_status === 1 && (
+                <div style={{ padding: '10px', backgroundColor: '#f1f2f6', borderRadius: '8px' }}>
+                  <label style={styles.label}>ระบุวันที่ชำระเงิน</label>
+                  <input type="date" required style={styles.input} onChange={e => setExpenseForm({...expenseForm, Expense_Date: e.target.value})}/>
+                </div>
+              )}
+
               <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                 <button type="submit" style={{...styles.submitBtn, backgroundColor: '#3498db'}}>บันทึกรายจ่าย</button>
                 <button type="button" onClick={() => setShowExpenseModal(false)} style={styles.cancelBtn}>ยกเลิก</button>

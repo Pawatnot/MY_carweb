@@ -65,7 +65,7 @@ const styles = {
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: '0 30px',
-    backgroundColor: 'white',
+    backgroundColor: '#FDFBF7',
     boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
   },
   rightSection: { display: 'flex', alignItems: 'center' },

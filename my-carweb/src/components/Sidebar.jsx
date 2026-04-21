@@ -50,7 +50,8 @@ const Sidebar = () => {
             ========================================== */}
         {isAdmin && (
           <>
-            <hr style={{ borderColor: '#34495e', margin: '20px 0' }} />
+            {/* เปลี่ยนสีเส้นคั่นให้เข้ากับโทนใหม่ */}
+            <hr style={{ borderColor: '#334155', margin: '20px 0' }} />
             <li>
               <Link to="/manage-users" style={isActive('/manage-users') ? styles.activeLink : styles.link}>
                  จัดการผู้ใช้งาน
@@ -65,17 +66,31 @@ const Sidebar = () => {
   );
 };
 
+// 🎨 ปรับปรุงรหัสสีใหม่ทั้งหมดตรงนี้ครับ
+// 🎨 โทนสีใหม่: ครีมละมุน (Soft Cream & Warm Beige) อบอุ่น สบายตา มินิมอล
 const styles = {
-  sidebar: { width: '250px', height: '100vh', backgroundColor: '#2c3e50', color: 'white', position: 'fixed', left: 0, top: 0, display: 'flex', flexDirection: 'column', boxShadow: '2px 0 5px rgba(0,0,0,0.1)' },
+  sidebar: { 
+    width: '250px', 
+    height: '100vh', 
+    backgroundColor: '#FDFBF7', // 🔹 สีพื้นหลังหลัก สีครีมอ่อนๆ (Off-White) ดูอบอุ่น สบายตา
+    color: '#4A4036', // เปลี่ยนสีตัวอักษรเป็นสีเทาอมน้ำตาลเข้ม ให้อ่านง่าย
+    position: 'fixed', 
+    left: 0, 
+    top: 0, 
+    display: 'flex', 
+    flexDirection: 'column', 
+    boxShadow: '2px 0 15px rgba(0,0,0,0.03)' // เงาบางๆ ให้แถบเมนูดูลอยแยกจากเนื้อหา
+  },
   
   logoContainer: { 
     padding: '20px', 
-    backgroundColor: '#1a252f', 
+    backgroundColor: '#FFFFFF', // 🔹 พื้นหลังโลโก้สีขาวล้วน จะช่วยตีกรอบให้โลโก้สีแดงดูสะอาดและเด่นที่สุด
     textAlign: 'center',
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    minHeight: '80px' 
+    minHeight: '80px',
+    borderBottom: '1px solid #F0EAE1' // เส้นคั่นสีครีมเข้ม
   },
   
   logoImage: {
@@ -86,8 +101,26 @@ const styles = {
   },
 
   menuList: { listStyle: 'none', padding: '0', margin: '20px 0', width: '100%' },
-  link: { display: 'block', padding: '15px 20px', color: '#bdc3c7', textDecoration: 'none', fontSize: '16px', transition: '0.3s' },
-  activeLink: { display: 'block', padding: '15px 20px', color: 'white', backgroundColor: '#34495e', textDecoration: 'none', fontSize: '16px', fontWeight: 'bold', borderLeft: '4px solid #3498db' }
+  
+  link: { 
+    display: 'block', 
+    padding: '15px 20px', 
+    color: '#8A7D72', // 🔹 เมนูที่ไม่ได้เลือก เป็นสีน้ำตาลอมเทาละมุนๆ
+    textDecoration: 'none', 
+    fontSize: '16px', 
+    transition: '0.3s' 
+  },
+  
+  activeLink: { 
+    display: 'block', 
+    padding: '15px 20px', 
+    color: '#B91C1C', // 🔹 ตัวอักษรตอนเลือกเมนูเป็น "สีแดง" (เชื่อมโยงกับโลโก้)
+    backgroundColor: '#F5EFE6', // 🔹 พื้นหลังตอนเลือกเป็นสีครีมที่เข้มขึ้นมานิดนึง (Warm Beige)
+    textDecoration: 'none', 
+    fontSize: '16px', 
+    fontWeight: 'bold', 
+    borderLeft: '4px solid #DC2626' // 🔹 แถบซ้ายสีแดงสดใส
+  }
 };
 
 export default Sidebar;
