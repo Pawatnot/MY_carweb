@@ -55,7 +55,7 @@ const VehicleList = () => {
   if (loading) return <div style={{textAlign: 'center', marginTop: '50px'}}> กำลังโหลด...</div>;
 
   return (
-    <div style={{ padding: '20px' }}>
+    <div style={{ padding: '30px', backgroundColor: '#F9F8F4', minHeight: '100vh', boxSizing: 'border-box' }}>
       
       {/* ✅ ส่วนหัวข้อ + ปุ่มเพิ่มรถ (แบบ Button มีไอคอน + ข้อความ) */}
       <div style={styles.headerContainer}>
