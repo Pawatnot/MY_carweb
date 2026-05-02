@@ -97,6 +97,18 @@ app.get('/vehicles', (req, res) => {
     });
 });
 
+// ดึงข้อมูลรถ 1 คัน สำหรับนำไปแสดงในหน้าแก้ไข
+app.get('/vehicles/:id', (req, res) => {
+    const id = req.params.id;
+    const sql = "SELECT * FROM vehicle WHERE Vehicle_id = ?";
+    
+    db.query(sql, [id], (err, results) => {
+        if (err) return res.status(500).json(err);
+        if (results.length === 0) return res.status(404).json({ message: "ไม่พบข้อมูลรถ" });
+        res.json(results[0]);
+    });
+});
+
 app.post('/vehicles', upload.single('image'), (req, res) => {
     const { User_id, Brand, Model, vehicle_registration, Vehicle_Type } = req.body;
     const Vehicle_image = req.file ? req.file.filename : null; 
@@ -134,6 +146,26 @@ app.put('/vehicles/:id', upload.single('image'), (req, res) => {
     db.query(sql, params, (err, result) => {
         if (err) return res.status(500).json({ message: "Error updating vehicle" });
         res.json({ message: "แก้ไขสำเร็จ" });
+    });
+});
+
+// ดึง "ยี่ห้อรถ" ที่มีอยู่ในระบบ (เอามาเฉพาะชื่อที่ไม่ซ้ำกัน)
+app.get('/vehicle-brands', (req, res) => {
+    const sql = "SELECT DISTINCT Brand FROM vehicle WHERE Brand IS NOT NULL AND Brand != '' ORDER BY Brand ASC";
+    db.query(sql, (err, results) => {
+        if (err) return res.status(500).json(err);
+        // แปลงข้อมูลให้อยู่ในรูป Array ของชื่อยี่ห้อเพียวๆ: ['Honda', 'Toyota', 'Yamaha']
+        res.json(results.map(row => row.Brand));
+    });
+});
+
+// ดึง "รุ่นรถ" ตามยี่ห้อที่เลือก (เอามาเฉพาะชื่อที่ไม่ซ้ำกัน)
+app.get('/vehicle-models', (req, res) => {
+    const brand = req.query.brand;
+    const sql = "SELECT DISTINCT Model FROM vehicle WHERE Brand = ? AND Model IS NOT NULL AND Model != '' ORDER BY Model ASC";
+    db.query(sql, [brand], (err, results) => {
+        if (err) return res.status(500).json(err);
+        res.json(results.map(row => row.Model));
     });
 });
 
@@ -198,7 +230,7 @@ app.get('/expenses', (req, res) => {
 app.post('/expenses', (req, res) => {
     const { Vehicle_id, Amount_of_money, expenses_type_id, Expense_Date, payment_status, Detail } = req.body;
     
-    // ✅ จุดที่แก้: ถ้าไม่ได้ส่ง Expense_Date มา (หรือเป็นค่าว่าง) ให้กลายเป็น null
+    // จุดที่แก้: ถ้าไม่ได้ส่ง Expense_Date มา (หรือเป็นค่าว่าง) ให้กลายเป็น null
     const finalDate = Expense_Date ? Expense_Date : null;
     
     const sql = "INSERT INTO vehicle_expenses (Vehicle_id, Amount_of_money, expenses_type_id, Expense_Date, payment_status, Detail) VALUES (?, ?, ?, ?, ?, ?)";
@@ -232,7 +264,7 @@ app.put('/expenses/:id/status', (req, res) => {
 });
 
 // ==========================================
-// 📌 ระบบกำหนดการ (Vehicle_Schedules)
+// ระบบกำหนดการ (Vehicle_Schedules)
 // ==========================================
 
 // 1. ดึงข้อมูลกำหนดการทั้งหมด (แสดงพร้อมทะเบียนรถ)
@@ -278,5 +310,5 @@ app.post('/schedules', (req, res) => {
 
 const PORT = 5000;
 app.listen(PORT, () => {
-    console.log(`🚀 Server is running on port ${PORT}`);
+    console.log(`Server is running on port ${PORT}`);
 });
