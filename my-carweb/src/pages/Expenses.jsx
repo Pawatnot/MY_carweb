@@ -14,7 +14,10 @@ const Expenses = () => {
 
   const [categories, setCategories] = useState([]);
   const [myVehicles, setMyVehicles] = useState([]); 
-  const [expensesList, setExpensesList] = useState([]); 
+  const [expensesList, setExpensesList] = useState([]);
+  
+  // ✅ State สำหรับเก็บว่าตอนนี้เลือกแท็บไหนอยู่ ('all', 'unpaid', 'paid')
+  const [activeTab, setActiveTab] = useState('all'); 
   
   const [expenseType, setExpenseType] = useState('ชิ้นส่วน'); 
   const [expenseName, setExpenseName] = useState('');         
@@ -121,15 +124,20 @@ const Expenses = () => {
     }
   };
 
+  // ✅ ฟังก์ชันกรองข้อมูลบิลรายจ่าย (ใช้ตัวแปร expensesList แทน expenses)
+  const filteredExpenses = expensesList.filter(item => {
+    if (activeTab === 'all') return true; 
+    if (activeTab === 'paid') return item.payment_status === 1; 
+    if (activeTab === 'unpaid') return item.payment_status === 0; 
+    return true;
+  });
+
   const formatDate = (dateString) => {
     if (!dateString) return '';
     const d = new Date(dateString);
     return d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
   };
 
-  // ==========================================
-  // ✅ โซนคำนวณยอดเงิน เดือนนี้ VS เดือนที่แล้ว
-  // ==========================================
   const currentDate = new Date();
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
@@ -140,7 +148,6 @@ const Expenses = () => {
   let lastMonthTotal = 0;
 
   expensesList.forEach(exp => {
-    // นับเฉพาะบิลที่จ่ายเงินแล้ว (payment_status === 1)
     if (exp.payment_status === 1 && exp.Expense_Date) {
       const expDate = new Date(exp.Expense_Date);
       const m = expDate.getMonth();
@@ -158,11 +165,8 @@ const Expenses = () => {
   return (
     <div style={{ padding: '30px', backgroundColor: '#F9F8F4', minHeight: '100vh', boxSizing: 'border-box' }}>
       
-      {/* ================= 1. ส่วนหัว (สรุปยอด + ปุ่มเพิ่ม) ================= */}
       <div style={styles.topSection}>
-        {/* กล่องสรุปยอดซ้ายมือ */}
         <div style={styles.summaryContainer}>
-          {/* Card เดือนนี้ */}
           <div style={styles.summaryCard}>
             <div style={styles.iconCircle}>฿</div>
             <div>
@@ -171,7 +175,6 @@ const Expenses = () => {
             </div>
           </div>
           
-          {/* Card เดือนก่อนหน้า */}
           <div style={styles.summaryCard}>
             <div style={styles.iconCircle}>฿</div>
             <div>
@@ -181,28 +184,44 @@ const Expenses = () => {
           </div>
         </div>
 
-        {/* ปุ่มขวามือ */}
         <div style={styles.actionButtons}>
           <button onClick={() => setShowExpenseModal(true)} style={styles.addExpenseBtn}>➕ เพิ่มรายจ่าย</button>
           {isAdmin && (<button onClick={() => setShowCategoryModal(true)} style={styles.addCategoryBtn}>⚙️ ตั้งค่าประเภท</button>)}
         </div>
       </div>
 
-      {/* ================= 2. พื้นที่สำหรับกราฟ (ตาม Design) ================= */}
       <div style={styles.graphPlaceholder}>
         <span style={{ fontSize: '40px', color: '#CBD5E1', zIndex: 2 }}>📊</span>
         <p style={styles.graphText}>กราฟแสดงรายจ่ายของเดือนนี้</p>
       </div>
 
       <hr style={{ borderTop: '2px dashed #E2E8F0', margin: '30px 0' }}/>
-      <h2 style={{ color: '#2C3E50', marginBottom: '20px' }}>📋 รายการใช้จ่ายทั้งหมด</h2>
+      
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' }}>
+        <h2 style={{ color: '#2C3E50', margin: 0 }}>📋 รายการใช้จ่ายทั้งหมด</h2>
 
-      {/* ================= 3. รายการ Card รายจ่าย ================= */}
-      {expensesList.length === 0 ? (
-        <div style={{ textAlign: 'center', marginTop: '50px', color: '#7f8c8d' }}><p>ยังไม่มีรายการรายจ่าย...</p></div>
+        {/* ✅ เพิ่มปุ่ม Tabs กรองข้อมูลตรงนี้ */}
+        <div style={styles.tabContainer}>
+          <button onClick={() => setActiveTab('all')} style={activeTab === 'all' ? styles.activeTabAll : styles.inactiveTab}>
+            📄 ทั้งหมด
+          </button>
+          <button onClick={() => setActiveTab('unpaid')} style={activeTab === 'unpaid' ? styles.activeTabUnpaid : styles.inactiveTab}>
+            🔴 ยังไม่จ่าย
+          </button>
+          <button onClick={() => setActiveTab('paid')} style={activeTab === 'paid' ? styles.activeTabPaid : styles.inactiveTab}>
+            🟢 จ่ายแล้ว
+          </button>
+        </div>
+      </div>
+
+      {/* ✅ เปลี่ยนมาใช้ filteredExpenses แทน expensesList ในการ Map */}
+      {filteredExpenses.length === 0 ? (
+        <div style={{ textAlign: 'center', marginTop: '50px', color: '#7f8c8d' }}>
+          <p>ไม่มีรายการที่ค้นหาในหมวดหมู่นี้...</p>
+        </div>
       ) : (
         <div style={styles.grid}>
-          {expensesList.map(exp => (
+          {filteredExpenses.map(exp => (
             <div key={exp.Expenses_id} style={{ ...styles.card, borderLeft: exp.payment_status === 1 ? '5px solid #16A34A' : '5px solid #DC2626' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={styles.categoryTag}>{exp.expenses_type}</span>
@@ -235,8 +254,7 @@ const Expenses = () => {
         </div>
       )}
 
-      {/* ================= Modals ================= */}
-      {/* Modal 1: ถามวันที่จ่ายเงิน */}
+      {/* ================= Modals (ส่วนนี้คงเดิม ไม่ต้องแก้) ================= */}
       {showDateModal && (
         <div style={styles.modalOverlay} onClick={() => setShowDateModal(false)}>
           <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
@@ -252,7 +270,6 @@ const Expenses = () => {
         </div>
       )}
 
-      {/* Modal 2: เพิ่มรายจ่าย */}
       {showExpenseModal && (
         <div style={styles.modalOverlay} onClick={() => setShowExpenseModal(false)}>
           <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
@@ -298,7 +315,6 @@ const Expenses = () => {
         </div>
       )}
 
-      {/* Modal 3: เพิ่มประเภท */}
       {showCategoryModal && (
         <div style={styles.modalOverlay} onClick={() => setShowCategoryModal(false)}>
           <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
@@ -326,7 +342,6 @@ const Expenses = () => {
 
 // 🎨 Styles
 const styles = {
-  // สไตล์สำหรับ Section ด้านบน (สรุปยอด + ปุ่ม)
   topSection: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '20px', marginBottom: '25px' },
   summaryContainer: { display: 'flex', gap: '20px', flexWrap: 'wrap' },
   summaryCard: { backgroundColor: '#FFFFFF', padding: '20px 25px', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '20px', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', border: '1px solid #F0EAE1', minWidth: '280px' },
@@ -338,16 +353,20 @@ const styles = {
   addExpenseBtn: { backgroundColor: '#2C3E50', color: 'white', border: 'none', padding: '12px 25px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' },
   addCategoryBtn: { backgroundColor: '#FFFFFF', color: '#2C3E50', border: '2px solid #2C3E50', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' },
   
-  // สไตล์สำหรับพื้นที่ใส่กราฟ
   graphPlaceholder: { backgroundColor: '#FFFFFF', border: '2px dashed #CBD5E1', height: '220px', borderRadius: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', position: 'relative', overflow: 'hidden' },
   graphText: { zIndex: 2, color: '#64748B', fontWeight: 'bold', marginTop: '10px', fontSize: '16px' },
 
-  // สไตล์ของ Card เดิม
+  // ✅ สไตล์สำหรับ Tabs เมนู
+  tabContainer: { display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '5px' },
+  activeTabAll: { padding: '8px 20px', backgroundColor: '#2C3E50', color: 'white', border: 'none', borderRadius: '20px', fontWeight: 'bold', cursor: 'pointer', transition: '0.3s' },
+  activeTabUnpaid: { padding: '8px 20px', backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '20px', fontWeight: 'bold', cursor: 'pointer', transition: '0.3s' },
+  activeTabPaid: { padding: '8px 20px', backgroundColor: '#27ae60', color: 'white', border: 'none', borderRadius: '20px', fontWeight: 'bold', cursor: 'pointer', transition: '0.3s' },
+  inactiveTab: { padding: '8px 20px', backgroundColor: '#FFFFFF', color: '#64748b', border: '1px solid #CBD5E1', borderRadius: '20px', fontWeight: 'bold', cursor: 'pointer', transition: '0.3s' },
+
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' },
   card: { backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 10px rgba(0,0,0,0.04)', transition: 'transform 0.2s' },
   categoryTag: { backgroundColor: '#F1F5F9', color: '#475569', padding: '5px 10px', borderRadius: '5px', fontSize: '12px', fontWeight: 'bold' },
   
-  // สไตล์ของ Modal
   modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
   modalContent: { backgroundColor: 'white', padding: '30px', borderRadius: '12px', width: '90%', maxWidth: '450px', boxShadow: '0 5px 15px rgba(0,0,0,0.2)' },
   label: { fontWeight: 'bold', color: '#34495e', fontSize: '14px', marginBottom: '5px', display: 'block' },

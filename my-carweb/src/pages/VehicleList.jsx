@@ -87,7 +87,7 @@ const VehicleList = () => {
               {car.Vehicle_image ? (
                 <img src={`http://localhost:5000/uploads/${car.Vehicle_image}`} alt={car.Model} style={styles.thumbnail}/>
               ) : (
-                <div style={styles.noImagePlaceholder}>🚗 ไม่มีรูป</div>
+                <div style={styles.noImagePlaceholder}>ไม่มีรูป</div>
               )}
               <div style={{ padding: '15px' }}>
                 <h3 style={{ margin: '0 0 10px 0', color: '#34495e' }}>{car.Brand} {car.Model}</h3>
