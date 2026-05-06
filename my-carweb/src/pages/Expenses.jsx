@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const Expenses = () => {
   const [isAdmin, setIsAdmin] = useState(false);
@@ -16,7 +17,6 @@ const Expenses = () => {
   const [myVehicles, setMyVehicles] = useState([]); 
   const [expensesList, setExpensesList] = useState([]);
   
-  // ✅ State สำหรับเก็บว่าตอนนี้เลือกแท็บไหนอยู่ ('all', 'unpaid', 'paid')
   const [activeTab, setActiveTab] = useState('all'); 
   
   const [expenseType, setExpenseType] = useState('ชิ้นส่วน'); 
@@ -30,6 +30,9 @@ const Expenses = () => {
     Detail: '',
     payment_status: 0 
   });
+
+  const [isAutoSchedule, setIsAutoSchedule] = useState(false);
+  const [nextExpiryDate, setNextExpiryDate] = useState('');
 
   useEffect(() => {
     const adminStatus = localStorage.getItem('is_admin');
@@ -72,22 +75,41 @@ const Expenses = () => {
         is_document: expenseType === 'เอกสาร' ? 1 : 0, 
         expenses_type: expenseName 
       });
-      alert("✅ เพิ่มประเภทเรียบร้อย");
+      alert("เพิ่มประเภทเรียบร้อย");
       setShowCategoryModal(false);
       setExpenseName('');
       fetchCategories(); 
-    } catch (error) { alert("❌ เกิดข้อผิดพลาด"); }
+    } catch (error) { alert("เกิดข้อผิดพลาด"); }
   };
 
   const handleAddExpense = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:5000/expenses', expenseForm);
-      alert("✅ บันทึกรายจ่ายสำเร็จ");
+      const expenseRes = await axios.post('http://localhost:5000/expenses', expenseForm);
+      const newExpenseId = expenseRes.data.insertId;
+
+      if (isAutoSchedule && nextExpiryDate) {
+        const selectedCat = categories.find(c => c.expenses_type_id == expenseForm.expenses_type_id);
+        const itemName = selectedCat ? selectedCat.expenses_type : 'บำรุงรักษารถยนต์';
+
+        await axios.post('http://localhost:5000/schedules', {
+          Vehicle_id: expenseForm.Vehicle_id,
+          expenses_id: newExpenseId,
+          Item_Name: itemName,
+          Expiry_Date: nextExpiryDate
+        });
+      }
+
+      alert("บันทึกข้อมูลสำเร็จ");
       setShowExpenseModal(false); 
       setExpenseForm({ Vehicle_id: '', expenses_type_id: '', Amount_of_money: '', Expense_Date: '', Detail: '', payment_status: 0 }); 
+      setIsAutoSchedule(false);
+      setNextExpiryDate('');
       fetchExpensesList(userId, isAdmin ? '1' : '0'); 
-    } catch (error) { alert("❌ เกิดข้อผิดพลาดในการบันทึกรายจ่าย"); }
+    } catch (error) { 
+      console.error(error);
+      alert("เกิดข้อผิดพลาดในการบันทึกรายจ่าย"); 
+    }
   };
 
   const togglePaidStatus = async (exp) => {
@@ -100,7 +122,7 @@ const Expenses = () => {
         fetchExpensesList(userId, isAdmin ? '1' : '0'); 
       } catch (error) {
         console.error(error);
-        alert("❌ เกิดข้อผิดพลาดในการอัปเดตสถานะ");
+        alert("เกิดข้อผิดพลาดในการอัปเดตสถานะ");
       }
     } else {
       setPayingExpenseId(exp.Expenses_id);
@@ -120,11 +142,10 @@ const Expenses = () => {
       fetchExpensesList(userId, isAdmin ? '1' : '0'); 
     } catch (error) {
       console.error(error);
-      alert("❌ เกิดข้อผิดพลาดในการอัปเดตสถานะ");
+      alert("เกิดข้อผิดพลาดในการอัปเดตสถานะ");
     }
   };
 
-  // ✅ ฟังก์ชันกรองข้อมูลบิลรายจ่าย (ใช้ตัวแปร expensesList แทน expenses)
   const filteredExpenses = expensesList.filter(item => {
     if (activeTab === 'all') return true; 
     if (activeTab === 'paid') return item.payment_status === 1; 
@@ -147,6 +168,9 @@ const Expenses = () => {
   let thisMonthTotal = 0;
   let lastMonthTotal = 0;
 
+  // จัดเตรียมข้อมูลสำหรับกราฟ (รวมยอดเงินแยกตามประเภทรายจ่าย เฉพาะเดือนปัจจุบัน)
+  const chartDataMap = {};
+
   expensesList.forEach(exp => {
     if (exp.payment_status === 1 && exp.Expense_Date) {
       const expDate = new Date(exp.Expense_Date);
@@ -156,11 +180,25 @@ const Expenses = () => {
 
       if (m === currentMonth && y === currentYear) {
         thisMonthTotal += amount;
+        
+        // จัดกลุ่มหมวดหมู่สำหรับกราฟ
+        const categoryName = exp.expenses_type || 'อื่นๆ';
+        if (chartDataMap[categoryName]) {
+          chartDataMap[categoryName] += amount;
+        } else {
+          chartDataMap[categoryName] = amount;
+        }
       } else if (m === lastMonth && y === lastYear) {
         lastMonthTotal += amount;
       }
     }
   });
+
+  // แปลงข้อมูลให้อยู่ในรูปแบบ Array ที่ Recharts ต้องการ
+  const chartData = Object.keys(chartDataMap).map(key => ({
+    name: key,
+    total: chartDataMap[key]
+  }));
 
   return (
     <div style={{ padding: '30px', backgroundColor: '#F9F8F4', minHeight: '100vh', boxSizing: 'border-box' }}>
@@ -185,36 +223,55 @@ const Expenses = () => {
         </div>
 
         <div style={styles.actionButtons}>
-          <button onClick={() => setShowExpenseModal(true)} style={styles.addExpenseBtn}>➕ เพิ่มรายจ่าย</button>
-          {isAdmin && (<button onClick={() => setShowCategoryModal(true)} style={styles.addCategoryBtn}>⚙️ ตั้งค่าประเภท</button>)}
+          <button onClick={() => setShowExpenseModal(true)} style={styles.addExpenseBtn}>เพิ่มรายจ่าย</button>
+          {isAdmin && (<button onClick={() => setShowCategoryModal(true)} style={styles.addCategoryBtn}>ตั้งค่าประเภท</button>)}
         </div>
       </div>
 
-      <div style={styles.graphPlaceholder}>
-        <span style={{ fontSize: '40px', color: '#CBD5E1', zIndex: 2 }}>📊</span>
-        <p style={styles.graphText}>กราฟแสดงรายจ่ายของเดือนนี้</p>
+      {/* ส่วนแสดงกราฟ */}
+      <div style={{ backgroundColor: '#FFFFFF', padding: '20px', borderRadius: '16px', boxShadow: '0 4px 10px rgba(0,0,0,0.03)', border: '1px solid #F0EAE1', marginBottom: '30px' }}>
+        <h3 style={{ color: '#2C3E50', marginTop: 0, marginBottom: '20px' }}>กราฟสรุปรายจ่ายเดือนนี้ (แยกตามหมวดหมู่)</h3>
+        
+        {chartData.length === 0 ? (
+          <div style={{ height: '250px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#94A3B8' }}>
+            ยังไม่มีข้อมูลรายจ่ายที่ชำระเงินแล้วในเดือนนี้
+          </div>
+        ) : (
+          <div style={{ height: '300px', width: '100%' }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748B' }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748B' }} />
+                <Tooltip 
+                  cursor={{ fill: '#F8FAFC' }}
+                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
+                />
+                <Bar dataKey="total" fill="#3498db" radius={[4, 4, 0, 0]} barSize={40} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </div>
 
       <hr style={{ borderTop: '2px dashed #E2E8F0', margin: '30px 0' }}/>
       
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' }}>
-        <h2 style={{ color: '#2C3E50', margin: 0 }}>📋 รายการใช้จ่ายทั้งหมด</h2>
+        <h2 style={{ color: '#2C3E50', margin: 0 }}>รายการใช้จ่ายทั้งหมด</h2>
 
-        {/* ✅ เพิ่มปุ่ม Tabs กรองข้อมูลตรงนี้ */}
         <div style={styles.tabContainer}>
           <button onClick={() => setActiveTab('all')} style={activeTab === 'all' ? styles.activeTabAll : styles.inactiveTab}>
-            📄 ทั้งหมด
+            ทั้งหมด
           </button>
           <button onClick={() => setActiveTab('unpaid')} style={activeTab === 'unpaid' ? styles.activeTabUnpaid : styles.inactiveTab}>
-            🔴 ยังไม่จ่าย
+            ยังไม่จ่าย
           </button>
           <button onClick={() => setActiveTab('paid')} style={activeTab === 'paid' ? styles.activeTabPaid : styles.inactiveTab}>
-            🟢 จ่ายแล้ว
+            จ่ายแล้ว
           </button>
         </div>
       </div>
 
-      {/* ✅ เปลี่ยนมาใช้ filteredExpenses แทน expensesList ในการ Map */}
       {filteredExpenses.length === 0 ? (
         <div style={{ textAlign: 'center', marginTop: '50px', color: '#7f8c8d' }}>
           <p>ไม่มีรายการที่ค้นหาในหมวดหมู่นี้...</p>
@@ -231,30 +288,29 @@ const Expenses = () => {
               <p style={{ margin: '0', color: '#7f8c8d', fontSize: '13px' }}>ทะเบียน: {exp.vehicle_registration}</p>
               
               <p style={{ margin: '5px 0', color: '#34495e', fontSize: '14px', backgroundColor: '#F8FAFC', padding: '8px', borderRadius: '5px' }}>
-                📝 หมายเหตุ: {exp.Detail || '-'}
+                หมายเหตุ: {exp.Detail || '-'}
               </p>
 
               {exp.payment_status === 1 ? (
                 <p style={{ margin: '5px 0 15px 0', color: '#16A34A', fontSize: '14px', fontWeight: 'bold' }}>
-                  📅 วันที่ชำระเงิน: {formatDate(exp.Expense_Date)}
+                  วันที่ชำระเงิน: {formatDate(exp.Expense_Date)}
                 </p>
               ) : (
                 <p style={{ margin: '5px 0 15px 0', color: '#DC2626', fontSize: '14px', fontWeight: 'bold' }}>
-                  ⏳ ยังไม่ได้ชำระเงิน
+                  ยังไม่ได้ชำระเงิน
                 </p>
               )}
 
               <hr style={{ borderTop: '1px dashed #ecf0f1', margin: '10px 0' }}/>
               <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontWeight: 'bold', color: exp.payment_status === 1 ? '#16A34A' : '#DC2626' }}>
                 <input type="checkbox" checked={exp.payment_status === 1} onChange={() => togglePaidStatus(exp)} style={{ transform: 'scale(1.5)' }} />
-                {exp.payment_status === 1 ? '✅ จ่ายแล้ว' : '❌ ยังไม่จ่าย'}
+                {exp.payment_status === 1 ? 'จ่ายแล้ว' : 'ยังไม่จ่าย'}
               </label>
             </div>
           ))}
         </div>
       )}
 
-      {/* ================= Modals (ส่วนนี้คงเดิม ไม่ต้องแก้) ================= */}
       {showDateModal && (
         <div style={styles.modalOverlay} onClick={() => setShowDateModal(false)}>
           <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
@@ -306,6 +362,31 @@ const Expenses = () => {
                 </div>
               )}
 
+              <div style={{ padding: '15px', backgroundColor: '#F0FDF4', borderRadius: '8px', border: '1px solid #BBF7D0', marginTop: '5px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={isAutoSchedule} 
+                    onChange={e => setIsAutoSchedule(e.target.checked)} 
+                    style={{ transform: 'scale(1.2)' }} 
+                  />
+                  <span style={{fontWeight: 'bold', color: '#16A34A'}}>ตั้งเวลาแจ้งเตือนรอบถัดไปอัตโนมัติ</span>
+                </label>
+
+                {isAutoSchedule && (
+                  <div style={{ marginTop: '10px' }}>
+                    <label style={styles.label}>ระบุวันที่ต้องทำรายการครั้งต่อไป</label>
+                    <input 
+                      type="date" 
+                      required 
+                      style={styles.input} 
+                      value={nextExpiryDate}
+                      onChange={e => setNextExpiryDate(e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+
               <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                 <button type="submit" style={{...styles.submitBtn, backgroundColor: '#3498db'}}>บันทึก</button>
                 <button type="button" onClick={() => setShowExpenseModal(false)} style={styles.cancelBtn}>ยกเลิก</button>
@@ -323,8 +404,12 @@ const Expenses = () => {
               <div>
                 <label style={styles.label}>1. หมวดหมู่รายจ่าย:</label>
                 <div style={{ display: 'flex', gap: '20px', marginTop: '10px' }}>
-                  <label style={styles.checkboxLabel}><input type="checkbox" checked={expenseType === 'ชิ้นส่วน'} onChange={() => setExpenseType('ชิ้นส่วน')} style={{ transform: 'scale(1.3)' }}/>⚙️ ชิ้นส่วน</label>
-                  <label style={styles.checkboxLabel}><input type="checkbox" checked={expenseType === 'เอกสาร'} onChange={() => setExpenseType('เอกสาร')} style={{ transform: 'scale(1.3)' }}/>📄 เอกสาร</label>
+                  <label style={styles.checkboxLabel}>
+                    <input type="radio" name="expenseCategoryType" checked={expenseType === 'ชิ้นส่วน'} onChange={() => setExpenseType('ชิ้นส่วน')} style={{ transform: 'scale(1.3)' }}/> ชิ้นส่วน
+                  </label>
+                  <label style={styles.checkboxLabel}>
+                    <input type="radio" name="expenseCategoryType" checked={expenseType === 'เอกสาร'} onChange={() => setExpenseType('เอกสาร')} style={{ transform: 'scale(1.3)' }}/> เอกสาร
+                  </label>
                 </div>
               </div>
               <div><label style={styles.label}>2. ชื่อประเภท:</label><input type="text" required value={expenseName} onChange={(e) => setExpenseName(e.target.value)} style={styles.input}/></div>
@@ -340,7 +425,6 @@ const Expenses = () => {
   );
 };
 
-// 🎨 Styles
 const styles = {
   topSection: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '20px', marginBottom: '25px' },
   summaryContainer: { display: 'flex', gap: '20px', flexWrap: 'wrap' },
@@ -353,10 +437,6 @@ const styles = {
   addExpenseBtn: { backgroundColor: '#2C3E50', color: 'white', border: 'none', padding: '12px 25px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' },
   addCategoryBtn: { backgroundColor: '#FFFFFF', color: '#2C3E50', border: '2px solid #2C3E50', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' },
   
-  graphPlaceholder: { backgroundColor: '#FFFFFF', border: '2px dashed #CBD5E1', height: '220px', borderRadius: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', position: 'relative', overflow: 'hidden' },
-  graphText: { zIndex: 2, color: '#64748B', fontWeight: 'bold', marginTop: '10px', fontSize: '16px' },
-
-  // ✅ สไตล์สำหรับ Tabs เมนู
   tabContainer: { display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '5px' },
   activeTabAll: { padding: '8px 20px', backgroundColor: '#2C3E50', color: 'white', border: 'none', borderRadius: '20px', fontWeight: 'bold', cursor: 'pointer', transition: '0.3s' },
   activeTabUnpaid: { padding: '8px 20px', backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '20px', fontWeight: 'bold', cursor: 'pointer', transition: '0.3s' },

@@ -4,12 +4,12 @@ import axios from 'axios';
 const Schedules = () => {
   const [schedules, setSchedules] = useState([]);
   const [myVehicles, setMyVehicles] = useState([]);
+  const [categories, setCategories] = useState([]); // เพิ่ม State สำหรับเก็บประเภทรายจ่าย
   const [showModal, setShowModal] = useState(false);
 
   const [userId, setUserId] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // ฟอร์มสำหรับเพิ่มกำหนดการ Manual
   const [scheduleForm, setScheduleForm] = useState({
     Vehicle_id: '',
     Item_Name: '',
@@ -25,10 +25,10 @@ const Schedules = () => {
     if (uId) {
       fetchVehicles(uId, adminStatus);
       fetchSchedules(uId, adminStatus);
+      fetchCategories(); // เรียกใช้ฟังก์ชันดึงประเภทรายจ่าย
     }
   }, []);
 
-  // 📌 1. ดึงข้อมูลรถ (เพื่อเอามาใส่ใน Dropdown ตอนเพิ่มกำหนดการ)
   const fetchVehicles = async (uId, adminStatus) => {
     try {
       const response = await axios.get('http://localhost:5000/vehicles', { params: { user_id: uId, is_admin: adminStatus }});
@@ -36,12 +36,10 @@ const Schedules = () => {
     } catch (error) { console.error(error); }
   };
 
-  // 📌 2. ดึงข้อมูลกำหนดการจาก Database
   const fetchSchedules = async (uId, adminStatus) => {
     try {
       const response = await axios.get('http://localhost:5000/schedules', { params: { user_id: uId, is_admin: adminStatus }});
       
-      // ✅ คำนวณวันคงเหลือ และจัดกลุ่มสถานะอัตโนมัติ
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
@@ -50,9 +48,9 @@ const Schedules = () => {
         const diffTime = expDate - today;
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         
-        let status = 'upcoming'; // ล่วงหน้า > 7 วัน
-        if (diffDays < 0) status = 'overdue'; // เลยกำหนด
-        else if (diffDays >= 0 && diffDays <= 7) status = 'urgent'; // ด่วนภายใน 7 วัน
+        let status = 'upcoming'; 
+        if (diffDays < 0) status = 'overdue'; 
+        else if (diffDays >= 0 && diffDays <= 7) status = 'urgent'; 
 
         return { ...item, daysLeft: diffDays, status: status, formattedDate: expDate.toLocaleDateString('th-TH') };
       });
@@ -61,18 +59,25 @@ const Schedules = () => {
     } catch (error) { console.error(error); }
   };
 
-  // 📌 3. ส่งข้อมูลบันทึกลง Database
+  // ฟังก์ชันใหม่: ดึงข้อมูลประเภทรายจ่าย
+  const fetchCategories = async () => {
+    try {
+      const response = await axios.get('http://localhost:5000/expense-categories');
+      setCategories(response.data);
+    } catch (error) { console.error("Error fetching categories:", error); }
+  };
+
   const handleAddSchedule = async (e) => {
     e.preventDefault();
     try {
       await axios.post('http://localhost:5000/schedules', scheduleForm);
-      alert('✅ เพิ่มกำหนดการเรียบร้อย');
+      alert('เพิ่มกำหนดการเรียบร้อย');
       setShowModal(false);
       setScheduleForm({ Vehicle_id: '', Item_Name: '', Expiry_Date: '' });
-      fetchSchedules(userId, isAdmin ? '1' : '0'); // รีเฟรชข้อมูลใหม่
+      fetchSchedules(userId, isAdmin ? '1' : '0'); 
     } catch (error) {
       console.error(error);
-      alert('❌ เกิดข้อผิดพลาดในการบันทึก');
+      alert('เกิดข้อผิดพลาดในการบันทึก');
     }
   };
 
@@ -85,7 +90,6 @@ const Schedules = () => {
     }
   };
 
-  // คำนวณสรุปยอดกล่องด้านบน
   const overdueCount = schedules.filter(s => s.status === 'overdue').length;
   const urgentCount = schedules.filter(s => s.status === 'urgent').length;
   const upcomingCount = schedules.filter(s => s.status === 'upcoming').length;
@@ -94,21 +98,21 @@ const Schedules = () => {
     <div style={{ padding: '30px', backgroundColor: '#F9F8F4', minHeight: '100vh', boxSizing: 'border-box' }}>
       
       <div style={styles.headerContainer}>
-        <h2 style={{ color: '#2C3E50', margin: 0 }}>⏰ กำหนดการ & บำรุงรักษา</h2>
-        <button onClick={() => setShowModal(true)} style={styles.addBtn}>➕ เพิ่มกำหนดการ (Manual)</button>
+        <h2 style={{ color: '#2C3E50', margin: 0 }}>กำหนดการ & บำรุงรักษา</h2>
+        <button onClick={() => setShowModal(true)} style={styles.addBtn}>เพิ่มกำหนดการ (Manual)</button>
       </div>
 
       <div style={styles.summaryGrid}>
         <div style={{...styles.summaryCard, borderLeft: '5px solid #DC2626'}}>
-          <div style={styles.summaryTitle}>🔴 เลยกำหนดแล้ว</div>
+          <div style={styles.summaryTitle}>เลยกำหนดแล้ว</div>
           <div style={{...styles.summaryNumber, color: '#DC2626'}}>{overdueCount} <span style={styles.unit}>รายการ</span></div>
         </div>
         <div style={{...styles.summaryCard, borderLeft: '5px solid #F59E0B'}}>
-          <div style={styles.summaryTitle}>🟡 ใกล้ถึง (ภายใน 7 วัน)</div>
+          <div style={styles.summaryTitle}>ใกล้ถึง (ภายใน 7 วัน)</div>
           <div style={{...styles.summaryNumber, color: '#D97706'}}>{urgentCount} <span style={styles.unit}>รายการ</span></div>
         </div>
         <div style={{...styles.summaryCard, borderLeft: '5px solid #10B981'}}>
-          <div style={styles.summaryTitle}>🟢 กำหนดการล่วงหน้า</div>
+          <div style={styles.summaryTitle}>กำหนดการล่วงหน้า</div>
           <div style={{...styles.summaryNumber, color: '#16A34A'}}>{upcomingCount} <span style={styles.unit}>รายการ</span></div>
         </div>
       </div>
@@ -128,15 +132,15 @@ const Schedules = () => {
                   <div style={{ fontSize: '18px', fontWeight: 'bold', color: styleInfo.text }}>
                     {item.vehicle_registration} <span style={{fontSize: '14px', color: '#64748b', fontWeight: 'normal'}}>({item.Brand} {item.Model})</span>
                   </div>
-                  <div style={{ color: '#4A4036', fontSize: '15px', marginTop: '5px' }}>🔧 {item.Item_Name}</div>
-                  <div style={{ color: '#8A7D72', fontSize: '13px', marginTop: '5px' }}>📅 วันครบกำหนด: {item.formattedDate}</div>
+                  <div style={{ color: '#4A4036', fontSize: '15px', marginTop: '5px' }}>รายการ: {item.Item_Name}</div>
+                  <div style={{ color: '#8A7D72', fontSize: '13px', marginTop: '5px' }}>วันครบกำหนด: {item.formattedDate}</div>
                 </div>
 
                 <div style={styles.cardRight}>
                   <div style={{...styles.statusTag, backgroundColor: styleInfo.tagBg}}>
                     {item.daysLeft < 0 ? `เลยมา ${Math.abs(item.daysLeft)} วัน` : `เหลือ ${item.daysLeft} วัน`}
                   </div>
-                  <button style={styles.actionBtn}>✅ ดำเนินการแล้ว</button>
+                  <button style={styles.actionBtn}>ดำเนินการแล้ว</button>
                 </div>
 
               </div>
@@ -159,10 +163,18 @@ const Schedules = () => {
                   ))}
                 </select>
               </div>
+              
+              {/* เปลี่ยนจาก input text เป็น select dropdown ตรงนี้ครับ */}
               <div>
                 <label style={styles.label}>2. ชื่อรายการแจ้งเตือน</label>
-                <input type="text" placeholder="เช่น ต่อภาษี, เปลี่ยนยาง" style={styles.input} required value={scheduleForm.Item_Name} onChange={e => setScheduleForm({...scheduleForm, Item_Name: e.target.value})}/>
+                <select style={styles.input} required value={scheduleForm.Item_Name} onChange={e => setScheduleForm({...scheduleForm, Item_Name: e.target.value})}>
+                  <option value="">-- เลือกรายการ --</option>
+                  {categories.map(cat => (
+                    <option key={cat.expenses_type_id} value={cat.expenses_type}>{cat.expenses_type}</option>
+                  ))}
+                </select>
               </div>
+
               <div>
                 <label style={styles.label}>3. วันที่ครบกำหนด</label>
                 <input type="date" style={styles.input} required value={scheduleForm.Expiry_Date} onChange={e => setScheduleForm({...scheduleForm, Expiry_Date: e.target.value})}/>
@@ -180,7 +192,6 @@ const Schedules = () => {
   );
 };
 
-// 🎨 Styles โครงสร้างเดิม
 const styles = {
   headerContainer: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '10px' },
   addBtn: { backgroundColor: '#2C3E50', color: 'white', border: 'none', padding: '12px 25px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' },

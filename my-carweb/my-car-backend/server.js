@@ -229,8 +229,6 @@ app.get('/expenses', (req, res) => {
 // 2. API บันทึกรายจ่ายใหม่ลงตาราง
 app.post('/expenses', (req, res) => {
     const { Vehicle_id, Amount_of_money, expenses_type_id, Expense_Date, payment_status, Detail } = req.body;
-    
-    // จุดที่แก้: ถ้าไม่ได้ส่ง Expense_Date มา (หรือเป็นค่าว่าง) ให้กลายเป็น null
     const finalDate = Expense_Date ? Expense_Date : null;
     
     const sql = "INSERT INTO vehicle_expenses (Vehicle_id, Amount_of_money, expenses_type_id, Expense_Date, payment_status, Detail) VALUES (?, ?, ?, ?, ?, ?)";
@@ -240,7 +238,8 @@ app.post('/expenses', (req, res) => {
             console.error("Error POST expenses:", err);
             return res.status(500).json({ message: "เกิดข้อผิดพลาดในการบันทึก" });
         }
-        res.status(201).json({ message: "บันทึกรายจ่ายสำเร็จ!" });
+        // แก้ไขบรรทัดนี้: ให้แนบ insertId กลับไปด้วย
+        res.status(201).json({ message: "บันทึกรายจ่ายสำเร็จ!", insertId: result.insertId });
     });
 });
 
