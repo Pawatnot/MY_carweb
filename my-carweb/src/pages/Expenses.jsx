@@ -159,6 +159,9 @@ const Expenses = () => {
     return d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
   };
 
+  // -----------------------------------------------------
+  // ส่วนคำนวณและเตรียมข้อมูลสำหรับกราฟ (แยกตาม 5 เดือนล่าสุด)
+  // -----------------------------------------------------
   const currentDate = new Date();
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
@@ -168,9 +171,21 @@ const Expenses = () => {
   let thisMonthTotal = 0;
   let lastMonthTotal = 0;
 
-  // จัดเตรียมข้อมูลสำหรับกราฟ (รวมยอดเงินแยกตามประเภทรายจ่าย เฉพาะเดือนปัจจุบัน)
+  const monthsToShow = 5;
+  const monthNames = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
   const chartDataMap = {};
 
+  // 1. สร้างโครงสร้างข้อมูล 5 เดือนล่าสุดรอไว้ (เรียงจากเก่าไปใหม่)
+  for (let i = monthsToShow - 1; i >= 0; i--) {
+    const d = new Date(currentYear, currentMonth - i, 1);
+    const m = d.getMonth();
+    const y = d.getFullYear();
+    const key = `${y}-${m}`;
+    const label = `${monthNames[m]} ${(y + 543).toString().slice(-2)}`;
+    chartDataMap[key] = { name: label, total: 0 };
+  }
+
+  // 2. จัดกลุ่มยอดเงินรายจ่ายลงในเดือนที่ถูกต้อง
   expensesList.forEach(exp => {
     if (exp.payment_status === 1 && exp.Expense_Date) {
       const expDate = new Date(exp.Expense_Date);
@@ -178,27 +193,22 @@ const Expenses = () => {
       const y = expDate.getFullYear();
       const amount = parseFloat(exp.Amount_of_money || 0);
 
+      // คำนวณกล่องสรุปยอดเดือนนี้ / เดือนก่อน
       if (m === currentMonth && y === currentYear) {
         thisMonthTotal += amount;
-        
-        // จัดกลุ่มหมวดหมู่สำหรับกราฟ
-        const categoryName = exp.expenses_type || 'อื่นๆ';
-        if (chartDataMap[categoryName]) {
-          chartDataMap[categoryName] += amount;
-        } else {
-          chartDataMap[categoryName] = amount;
-        }
       } else if (m === lastMonth && y === lastYear) {
         lastMonthTotal += amount;
+      }
+
+      // นำยอดเข้ากราฟ (เฉพาะถ้าอยู่ใน 5 เดือนล่าสุด)
+      const key = `${y}-${m}`;
+      if (chartDataMap[key]) {
+        chartDataMap[key].total += amount;
       }
     }
   });
 
-  // แปลงข้อมูลให้อยู่ในรูปแบบ Array ที่ Recharts ต้องการ
-  const chartData = Object.keys(chartDataMap).map(key => ({
-    name: key,
-    total: chartDataMap[key]
-  }));
+  const chartData = Object.values(chartDataMap);
 
   return (
     <div style={{ padding: '30px', backgroundColor: '#F9F8F4', minHeight: '100vh', boxSizing: 'border-box' }}>
@@ -228,30 +238,23 @@ const Expenses = () => {
         </div>
       </div>
 
-      {/* ส่วนแสดงกราฟ */}
       <div style={{ backgroundColor: '#FFFFFF', padding: '20px', borderRadius: '16px', boxShadow: '0 4px 10px rgba(0,0,0,0.03)', border: '1px solid #F0EAE1', marginBottom: '30px' }}>
-        <h3 style={{ color: '#2C3E50', marginTop: 0, marginBottom: '20px' }}>กราฟสรุปรายจ่ายเดือนนี้ (แยกตามหมวดหมู่)</h3>
+        <h3 style={{ color: '#2C3E50', marginTop: 0, marginBottom: '20px' }}>กราฟสรุปรายจ่าย 5 เดือนล่าสุด</h3>
         
-        {chartData.length === 0 ? (
-          <div style={{ height: '250px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#94A3B8' }}>
-            ยังไม่มีข้อมูลรายจ่ายที่ชำระเงินแล้วในเดือนนี้
-          </div>
-        ) : (
-          <div style={{ height: '300px', width: '100%' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748B' }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748B' }} />
-                <Tooltip 
-                  cursor={{ fill: '#F8FAFC' }}
-                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
-                />
-                <Bar dataKey="total" fill="#3498db" radius={[4, 4, 0, 0]} barSize={40} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
+        <div style={{ height: '300px', width: '100%' }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748B' }} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748B' }} />
+              <Tooltip 
+                cursor={{ fill: '#F8FAFC' }}
+                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
+              />
+              <Bar dataKey="total" fill="#3498db" radius={[4, 4, 0, 0]} barSize={40} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
       <hr style={{ borderTop: '2px dashed #E2E8F0', margin: '30px 0' }}/>
