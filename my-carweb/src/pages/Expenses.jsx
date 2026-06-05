@@ -20,7 +20,7 @@ const Expenses = () => {
   const [activeTab, setActiveTab] = useState('all'); 
   
   const [expenseType, setExpenseType] = useState('ชิ้นส่วน'); 
-  const [expenseName, setExpenseName] = useState('');         
+  const [expenseName, setExpenseName] = useState('');        
 
   const [expenseForm, setExpenseForm] = useState({
     Vehicle_id: '', 
@@ -33,6 +33,8 @@ const Expenses = () => {
 
   const [isAutoSchedule, setIsAutoSchedule] = useState(false);
   const [nextExpiryDate, setNextExpiryDate] = useState('');
+
+  const [selectedVehicleFilter, setSelectedVehicleFilter] = useState('');
 
   useEffect(() => {
     const adminStatus = localStorage.getItem('is_admin');
@@ -146,11 +148,16 @@ const Expenses = () => {
     }
   };
 
-  const filteredExpenses = expensesList.filter(item => {
-    if (activeTab === 'all') return true; 
-    if (activeTab === 'paid') return item.payment_status === 1; 
-    if (activeTab === 'unpaid') return item.payment_status === 0; 
-    return true;
+  const filteredExpenses = expensesList.filter(expense => {
+    // 1. ด่านแรก: กรองตามยานพาหนะ (แก้ไขให้ใช้ ทะเบียนรถ ในการกรอง)
+    if (selectedVehicleFilter !== '' && expense.vehicle_registration !== selectedVehicleFilter) {
+      return false;
+    }
+
+    // 2. ด่านสอง: กรองตามสถานะการจ่ายเงิน
+    if (activeTab === 'paid') return expense.payment_status === 1;
+    if (activeTab === 'unpaid') return expense.payment_status === 0;
+    return true; 
   });
 
   const formatDate = (dateString) => {
@@ -214,27 +221,28 @@ const Expenses = () => {
     <div style={{ padding: '30px', backgroundColor: '#F9F8F4', minHeight: '100vh', boxSizing: 'border-box' }}>
       
       <div style={styles.topSection}>
-        <div style={styles.summaryContainer}>
-          <div style={styles.summaryCard}>
-            <div style={styles.iconCircle}>฿</div>
-            <div>
-              <div style={styles.summaryTitle}>ค่าใช้จ่ายรวมเดือนนี้</div>
-              <div style={styles.summaryAmount}>{thisMonthTotal.toLocaleString()} <span style={styles.currency}>บาท</span></div>
-            </div>
-          </div>
+        <h2 style={{ color: '#2C3E50', margin: 0 }}>ระบบบันทึกรายจ่าย</h2>
+        
+        {/* จัดกลุ่มให้อยู่ขวามือ */}
+        <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
           
-          <div style={styles.summaryCard}>
-            <div style={styles.iconCircle}>฿</div>
-            <div>
-              <div style={styles.summaryTitle}>ค่าใช้จ่ายรวมเดือนก่อนหน้า</div>
-              <div style={styles.summaryAmount}>{lastMonthTotal.toLocaleString()} <span style={styles.currency}>บาท</span></div>
-            </div>
-          </div>
-        </div>
+          {/* Dropdown เลือกรถ */}
+          <select 
+            style={styles.filterSelect}
+            value={selectedVehicleFilter}
+            onChange={(e) => setSelectedVehicleFilter(e.target.value)}
+          >
+            <option value="">-- ยานพาหนะทั้งหมด --</option>
+            {myVehicles.map(v => (
+              // แก้ไข value ให้เป็นทะเบียนรถ
+              <option key={v.Vehicle_id} value={v.vehicle_registration}>
+                {v.vehicle_registration} ({v.Brand})
+              </option>
+            ))}
+          </select>
 
-        <div style={styles.actionButtons}>
-          <button onClick={() => setShowExpenseModal(true)} style={styles.addExpenseBtn}>เพิ่มรายจ่าย</button>
-          {isAdmin && (<button onClick={() => setShowCategoryModal(true)} style={styles.addCategoryBtn}>ตั้งค่าประเภท</button>)}
+          {/* ปุ่มเพิ่มรายจ่าย */}
+          <button onClick={() => setShowExpenseModal(true)} style={styles.addExpenseBtn}>เพิ่มรายจ่ายใหม่</button>
         </div>
       </div>
 
@@ -456,7 +464,19 @@ const styles = {
   checkboxLabel: { display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '16px' },
   input: { width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #bdc3c7', fontSize: '16px', boxSizing: 'border-box' },
   submitBtn: { flex: 1, padding: '12px', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' },
-  cancelBtn: { flex: 1, padding: '12px', backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' }
+  cancelBtn: { flex: 1, padding: '12px', backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' },
+  filterSelect: {
+    padding: '10px 15px',
+    borderRadius: '8px',
+    border: '1px solid #CBD5E1',
+    backgroundColor: '#FFFFFF',
+    color: '#475569',
+    fontSize: '14px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    outline: 'none',
+    minWidth: '200px'
+  }
 };
 
 export default Expenses;
