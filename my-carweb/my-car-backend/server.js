@@ -307,6 +307,22 @@ app.post('/schedules', (req, res) => {
   });
 });
 
+// 3. อัปเดตสถานะการดำเนินการของกำหนดการ (is_completed)
+app.put('/schedules/:id/status', (req, res) => {
+  const scheduleId = req.params.id;
+  const { is_completed } = req.body;
+
+  const sql = 'UPDATE vehicle_schedules SET is_completed = ? WHERE Schedule_id = ?';
+  db.query(sql, [is_completed, scheduleId], (err, result) => {
+    if (err) {
+      console.error("Error updating schedule status:", err);
+      return res.status(500).json({ error: 'Database error' });
+    }
+    res.json({ message: 'อัปเดตสถานะเรียบร้อยแล้ว', result });
+  });
+});
+// ============================================
+
 const PORT = 5000;
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
