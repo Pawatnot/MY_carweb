@@ -327,3 +327,26 @@ const PORT = 5000;
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
+
+// API สำหรับเปลี่ยนรหัสผ่าน
+app.put('/users/:id/password', (req, res) => {
+  const userId = req.params.id;
+  const { currentPassword, newPassword } = req.body;
+
+  // 1. เช็ครหัสผ่านเดิมก่อนว่าถูกต้องไหม (สมมติว่าคอลัมน์ชื่อ Password)
+  const checkSql = "SELECT * FROM members WHERE User_id = ? AND Password = ?";
+  db.query(checkSql, [userId, currentPassword], (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+    
+    if (results.length === 0) {
+      return res.status(400).json({ message: "รหัสผ่านเดิมไม่ถูกต้อง" });
+    }
+
+    // 2. ถ้ารหัสเดิมถูกต้อง ให้อัปเดตเป็นรหัสผ่านใหม่
+    const updateSql = "UPDATE members SET Password = ? WHERE User_id = ?";
+    db.query(updateSql, [newPassword, userId], (err, updateResult) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ message: "เปลี่ยนรหัสผ่านสำเร็จ" });
+    });
+  });
+});
