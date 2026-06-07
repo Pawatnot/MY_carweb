@@ -22,17 +22,17 @@ const Expenses = () => {
   const [expenseType, setExpenseType] = useState('ชิ้นส่วน'); 
   const [expenseName, setExpenseName] = useState('');        
 
-  const [expenseForm, setExpenseForm] = useState({
-    Vehicle_id: '', 
-    expenses_type_id: '', 
-    Amount_of_money: '', 
-    Expense_Date: '', 
-    Detail: '',
-    payment_status: 0 
+  // ✅ 1. State สำหรับข้อมูลหลัก (บิลใบนี้ของรถคันไหน จ่ายเมื่อไหร่)
+  const [billData, setBillData] = useState({
+    Vehicle_id: '',
+    payment_status: 0,
+    Expense_Date: ''
   });
 
-  const [isAutoSchedule, setIsAutoSchedule] = useState(false);
-  const [nextExpiryDate, setNextExpiryDate] = useState('');
+  // ✅ 2. State สำหรับรายการย่อย (เป็น Array เพื่อให้เพิ่มหลายๆ กล่องได้)
+  const [expenseItems, setExpenseItems] = useState([
+    { expenses_type_id: '', Amount_of_money: '', Detail: '', isAutoSchedule: false, nextExpiryDate: '' }
+  ]);
 
   const [selectedVehicleFilter, setSelectedVehicleFilter] = useState('');
 
@@ -84,33 +84,67 @@ const Expenses = () => {
     } catch (error) { alert("เกิดข้อผิดพลาด"); }
   };
 
+  // ฟังก์ชันเพิ่มกล่องรายการใหม่
+  const handleAddItem = () => {
+    setExpenseItems([...expenseItems, { expenses_type_id: '', Amount_of_money: '', Detail: '', isAutoSchedule: false, nextExpiryDate: '' }]);
+  };
+
+  // ฟังก์ชันลบกล่องรายการ (ห้ามลบถ้าเหลือกล่องเดียว)
+  const handleRemoveItem = (index) => {
+    if (expenseItems.length > 1) {
+      setExpenseItems(expenseItems.filter((_, i) => i !== index));
+    }
+  };
+
+  // ฟังก์ชันอัปเดตค่าเมื่อพิมพ์ข้อมูลในกล่อง
+  const handleItemChange = (index, field, value) => {
+    const newItems = [...expenseItems];
+    newItems[index][field] = value;
+    setExpenseItems(newItems);
+  };
+
   const handleAddExpense = async (e) => {
     e.preventDefault();
     try {
-      const expenseRes = await axios.post('http://localhost:5000/expenses', expenseForm);
-      const newExpenseId = expenseRes.data.insertId;
-
-      if (isAutoSchedule && nextExpiryDate) {
-        const selectedCat = categories.find(c => c.expenses_type_id == expenseForm.expenses_type_id);
-        const itemName = selectedCat ? selectedCat.expenses_type : 'บำรุงรักษารถยนต์';
-
-        await axios.post('http://localhost:5000/schedules', {
-          Vehicle_id: expenseForm.Vehicle_id,
-          expenses_id: newExpenseId,
-          Item_Name: itemName,
-          Expiry_Date: nextExpiryDate
+      // ใช้ Promise.all เพื่อวนลูปส่งข้อมูลทุกรายการใน expenseItems ไปที่ Backend
+      await Promise.all(expenseItems.map(async (item) => {
+        
+        // 1. ส่งบันทึกรายจ่าย
+        const expenseRes = await axios.post('http://localhost:5000/expenses', {
+          Vehicle_id: billData.Vehicle_id,
+          payment_status: billData.payment_status,
+          Expense_Date: billData.Expense_Date,
+          expenses_type_id: item.expenses_type_id,
+          Amount_of_money: item.Amount_of_money,
+          Detail: item.Detail
         });
-      }
+        const newExpenseId = expenseRes.data.insertId;
 
-      alert("บันทึกข้อมูลสำเร็จ");
+        // 2. ถ้ารายการนั้นติ๊ก "ตั้งแจ้งเตือน" ให้บันทึกลง Schedules ด้วย
+        if (item.isAutoSchedule && item.nextExpiryDate) {
+          const selectedCat = categories.find(c => c.expenses_type_id == item.expenses_type_id);
+          const itemName = selectedCat ? selectedCat.expenses_type : 'บำรุงรักษารถยนต์';
+
+          await axios.post('http://localhost:5000/schedules', {
+            Vehicle_id: billData.Vehicle_id,
+            expenses_id: newExpenseId,
+            Item_Name: itemName,
+            Expiry_Date: item.nextExpiryDate
+          });
+        }
+      }));
+
+      alert("บันทึกข้อมูลสำเร็จทุกรายการ!");
       setShowExpenseModal(false); 
-      setExpenseForm({ Vehicle_id: '', expenses_type_id: '', Amount_of_money: '', Expense_Date: '', Detail: '', payment_status: 0 }); 
-      setIsAutoSchedule(false);
-      setNextExpiryDate('');
+      
+      // ล้างฟอร์มกลับเป็นค่าเริ่มต้น
+      setBillData({ Vehicle_id: '', payment_status: 0, Expense_Date: '' });
+      setExpenseItems([{ expenses_type_id: '', Amount_of_money: '', Detail: '', isAutoSchedule: false, nextExpiryDate: '' }]);
+      
       fetchExpensesList(userId, isAdmin ? '1' : '0'); 
     } catch (error) { 
       console.error(error);
-      alert("เกิดข้อผิดพลาดในการบันทึกรายจ่าย"); 
+      alert("เกิดข้อผิดพลาดในการบันทึกข้อมูลบางรายการ"); 
     }
   };
 
@@ -340,66 +374,87 @@ const Expenses = () => {
       {showExpenseModal && (
         <div style={styles.modalOverlay} onClick={() => setShowExpenseModal(false)}>
           <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ marginTop: 0, borderBottom: '2px solid #3498db', paddingBottom: '10px' }}>บันทึกรายจ่ายใหม่</h3>
+            <h3 style={{ marginTop: 0, borderBottom: '2px solid #3498db', paddingBottom: '10px' }}>บันทึกรายจ่าย (บิลเดียวหลายรายการ)</h3>
             <form onSubmit={handleAddExpense} style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
-              <div>
-                <label style={styles.label}>1. เลือกยานพาหนะ</label>
-                <select required style={styles.input} onChange={e => setExpenseForm({...expenseForm, Vehicle_id: e.target.value})}>
-                  <option value="">-- กรุณาเลือกรถ --</option>
-                  {myVehicles.map(v => <option key={v.Vehicle_id} value={v.Vehicle_id}>{v.Brand} {v.Model} ({v.vehicle_registration})</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={styles.label}>2. ประเภทรายจ่าย</label>
-                <select required style={styles.input} onChange={e => setExpenseForm({...expenseForm, expenses_type_id: e.target.value})}>
-                  <option value="">-- กรุณาเลือกประเภท --</option>
-                  {categories.map((cat) => (
-                    <option key={cat.expenses_type_id} value={cat.expenses_type_id}>{cat.expenses_type}</option>
-                  ))}
-                </select>
-              </div>
-              <div><label style={styles.label}>3. จำนวนเงิน (บาท)</label><input type="number" required min="0" style={styles.input} onChange={e => setExpenseForm({...expenseForm, Amount_of_money: e.target.value})}/></div>
-              <div><label style={styles.label}>4. รายละเอียดเพิ่มเติม</label><input type="text" placeholder="เช่น เปลี่ยนที่ร้าน ABC, โอนผ่านแบงค์" style={styles.input} onChange={e => setExpenseForm({...expenseForm, Detail: e.target.value})}/></div>
               
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginTop: '10px' }}>
-                <input type="checkbox" style={{ transform: 'scale(1.2)' }} onChange={e => setExpenseForm({...expenseForm, payment_status: e.target.checked ? 1 : 0, Expense_Date: ''})} />
-                <span style={{fontWeight: 'bold', color: '#34495e'}}>ชำระเงินเรียบร้อยแล้ว</span>
-              </label>
-
-              {expenseForm.payment_status === 1 && (
-                <div style={{ padding: '10px', backgroundColor: '#f1f2f6', borderRadius: '8px' }}>
-                  <label style={styles.label}>ระบุวันที่ชำระเงิน</label>
-                  <input type="date" required style={styles.input} onChange={e => setExpenseForm({...expenseForm, Expense_Date: e.target.value})}/>
+              {/* --- ส่วนที่ 1: ข้อมูลหลักของบิล --- */}
+              <div style={{ padding: '15px', backgroundColor: '#F8FAFC', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                <h4 style={{ margin: '0 0 10px 0', color: '#2C3E50' }}>ข้อมูลหลัก</h4>
+                <div style={{ marginBottom: '10px' }}>
+                  <label style={styles.label}>ยานพาหนะ</label>
+                  <select required style={styles.input} value={billData.Vehicle_id} onChange={e => setBillData({...billData, Vehicle_id: e.target.value})}>
+                    <option value="">-- กรุณาเลือกรถ --</option>
+                    {myVehicles.map(v => <option key={v.Vehicle_id} value={v.Vehicle_id}>{v.Brand} {v.Model} ({v.vehicle_registration})</option>)}
+                  </select>
                 </div>
-              )}
-
-              <div style={{ padding: '15px', backgroundColor: '#F0FDF4', borderRadius: '8px', border: '1px solid #BBF7D0', marginTop: '5px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                  <input 
-                    type="checkbox" 
-                    checked={isAutoSchedule} 
-                    onChange={e => setIsAutoSchedule(e.target.checked)} 
-                    style={{ transform: 'scale(1.2)' }} 
-                  />
-                  <span style={{fontWeight: 'bold', color: '#16A34A'}}>ตั้งเวลาแจ้งเตือนรอบถัดไปอัตโนมัติ</span>
+                
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginTop: '10px' }}>
+                  <input type="checkbox" checked={billData.payment_status === 1} onChange={e => setBillData({...billData, payment_status: e.target.checked ? 1 : 0, Expense_Date: ''})} style={{ transform: 'scale(1.2)' }} />
+                  <span style={{fontWeight: 'bold', color: '#34495e'}}>ชำระเงินเรียบร้อยแล้ว</span>
                 </label>
 
-                {isAutoSchedule && (
+                {billData.payment_status === 1 && (
                   <div style={{ marginTop: '10px' }}>
-                    <label style={styles.label}>ระบุวันที่ต้องทำรายการครั้งต่อไป</label>
-                    <input 
-                      type="date" 
-                      required 
-                      style={styles.input} 
-                      value={nextExpiryDate}
-                      onChange={e => setNextExpiryDate(e.target.value)}
-                    />
+                    <label style={styles.label}>วันที่ชำระเงิน</label>
+                    <input type="date" required style={styles.input} value={billData.Expense_Date} onChange={e => setBillData({...billData, Expense_Date: e.target.value})}/>
                   </div>
                 )}
               </div>
 
+              {/* --- ส่วนที่ 2: วนลูปกล่องรายการย่อย --- */}
+              <h4 style={{ margin: '10px 0 0 0', color: '#2C3E50' }}>รายการค่าใช้จ่าย</h4>
+              {expenseItems.map((item, index) => (
+                <div key={index} style={{ padding: '15px', backgroundColor: '#FFFFFF', borderRadius: '8px', border: '1px solid #CBD5E1', position: 'relative' }}>
+                  
+                  {/* ปุ่ม X สำหรับลบรายการ (จะซ่อนไว้ถ้ามีกล่องเดียว) */}
+                  {expenseItems.length > 1 && (
+                    <button type="button" onClick={() => handleRemoveItem(index)} style={{ position: 'absolute', top: '10px', right: '10px', background: '#e74c3c', color: 'white', border: 'none', borderRadius: '50%', width: '25px', height: '25px', cursor: 'pointer', fontWeight: 'bold' }}>X</button>
+                  )}
+                  
+                  <h5 style={{ margin: '0 0 10px 0', color: '#64748B' }}>รายการที่ {index + 1}</h5>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                    <div>
+                      <label style={styles.label}>ประเภท</label>
+                      <select required style={styles.input} value={item.expenses_type_id} onChange={e => handleItemChange(index, 'expenses_type_id', e.target.value)}>
+                        <option value="">-- เลือก --</option>
+                        {categories.map((cat) => (
+                          <option key={cat.expenses_type_id} value={cat.expenses_type_id}>{cat.expenses_type}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={styles.label}>จำนวนเงิน</label>
+                      <input type="number" required min="0" placeholder="0" style={styles.input} value={item.Amount_of_money} onChange={e => handleItemChange(index, 'Amount_of_money', e.target.value)}/>
+                    </div>
+                  </div>
+                  
+                  <div style={{ marginBottom: '10px' }}>
+                    <label style={styles.label}>รายละเอียด</label>
+                    <input type="text" placeholder="เช่น เปลี่ยนผ้าเบรคหน้า" style={styles.input} value={item.Detail} onChange={e => handleItemChange(index, 'Detail', e.target.value)}/>
+                  </div>
+
+                  <div style={{ padding: '10px', backgroundColor: '#F0FDF4', borderRadius: '8px', border: '1px solid #BBF7D0' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={item.isAutoSchedule} onChange={e => handleItemChange(index, 'isAutoSchedule', e.target.checked)} style={{ transform: 'scale(1.2)' }} />
+                      <span style={{fontWeight: 'bold', color: '#16A34A', fontSize: '13px'}}>ตั้งเตือนรอบถัดไปอัตโนมัติ</span>
+                    </label>
+                    {item.isAutoSchedule && (
+                      <div style={{ marginTop: '10px' }}>
+                        <input type="date" required style={styles.input} value={item.nextExpiryDate} onChange={e => handleItemChange(index, 'nextExpiryDate', e.target.value)}/>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              {/* ปุ่มกดเพิ่มรายการ */}
+              <button type="button" onClick={handleAddItem} style={{ padding: '10px', backgroundColor: '#F1F5F9', color: '#334155', border: '2px dashed #94A3B8', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
+                + เพิ่มรายการค่าใช้จ่าย
+              </button>
+
               <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                <button type="submit" style={{...styles.submitBtn, backgroundColor: '#3498db'}}>บันทึก</button>
+                <button type="submit" style={{...styles.submitBtn, backgroundColor: '#3498db'}}>บันทึกข้อมูลทั้งหมด</button>
                 <button type="button" onClick={() => setShowExpenseModal(false)} style={styles.cancelBtn}>ยกเลิก</button>
               </div>
             </form>
