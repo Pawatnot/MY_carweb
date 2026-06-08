@@ -53,7 +53,7 @@ const Sidebar = () => {
             {/* เปลี่ยนสีเส้นคั่นให้เข้ากับโทนใหม่ */}
             <hr style={{ borderColor: '#334155', margin: '20px 0' }} />
             <li>
-              <Link to="/manage-users" style={isActive('/manage-users') ? styles.activeLink : styles.link}>
+              <Link to="/ManageUsers" style={isActive('/ManageUsers') ? styles.activeLink : styles.link}>
                  จัดการผู้ใช้งาน
               </Link>
             </li>

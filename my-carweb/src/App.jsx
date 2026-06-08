@@ -11,7 +11,8 @@ import Profile from './pages/Profile';
 import Documents from './pages/Documents';     
 import Expenses from './pages/Expenses';     
 import Notification from './pages/Notification';     
-import Schedules from './pages/Schedules';     
+import Schedules from './pages/Schedules';
+import ManageUsers from './pages/manageusers';    
 
 // เรียกใช้ตัวช่วยที่เราเพิ่งสร้าง
 import PrivateRoute from './components/PrivateRoute';
@@ -45,7 +46,8 @@ function App() {
           
           {/* ✅ เพิ่ม Route หน้าแจ้งเตือน (เผื่อไว้สำหรับปุ่มกระดิ่ง) */}
           <Route path="/Schedules" element={<Schedules />} /> 
-          <Route path="/Notification" element={<Notification />} /> 
+          <Route path="/Notification" element={<Notification />} />  
+          <Route path="/ManageUsers" element={<ManageUsers />} />
         </Route>
 
       </Routes>
