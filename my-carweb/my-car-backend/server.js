@@ -61,13 +61,25 @@ app.post('/register', (req, res) => {
 
 app.post('/login', (req, res) => {
     const { Email, Password } = req.body;
-    const sql = "SELECT User_id, Name, Email, is_admin FROM members WHERE Email = ? AND Password = ?";
+    
+    // 💡 1. เพิ่ม is_approved ต่อท้ายเข้าไปในคำสั่ง SELECT 
+    const sql = "SELECT User_id, Name, Email, is_admin, is_approved FROM members WHERE Email = ? AND Password = ?";
     
     db.query(sql, [Email, Password], (err, results) => {
         if (err) return res.status(500).json({ message: "เกิดข้อผิดพลาดที่เซิร์ฟเวอร์" });
+        
         if (results.length > 0) {
             const user = results[0];
+            
+            // 💡 2. แทรกการเช็คสถานะการอนุมัติตรงนี้
+            if (user.is_approved === 0) {
+                // ใช้ status 403 (Forbidden) เพื่อบอกว่ารหัสถูกนะ แต่ไม่มีสิทธิ์เข้า
+                return res.status(403).json({ message: "บัญชีของคุณยังไม่ได้รับการอนุมัติ กรุณารอแอดมินตรวจสอบ" });
+            }
+
+            // 💡 3. ถ้าผ่านเงื่อนไขด้านบนมาได้ (is_approved = 1) ก็ให้เข้าสู่ระบบตามโค้ดเดิม
             res.json({ status: 'success', user_id: user.User_id, name: user.Name, is_admin: user.is_admin });
+            
         } else {
             res.status(401).json({ message: "อีเมลหรือรหัสผ่านไม่ถูกต้อง" });
         }
@@ -348,5 +360,37 @@ app.put('/users/:id/password', (req, res) => {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ message: "เปลี่ยนรหัสผ่านสำเร็จ" });
     });
+  });
+});
+
+// 1. API สำหรับดึงรายชื่อสมาชิกทั้งหมด (ดึงทุกคอลัมน์ยกเว้น Password เพื่อความปลอดภัย)
+app.get('/members', (req, res) => {
+  const sql = "SELECT User_id, Name, Email, PhoneNum, is_admin, is_approved FROM members ORDER BY User_id DESC";
+  
+  db.query(sql, (err, results) => {
+    if (err) return res.status(500).json({ message: "เกิดข้อผิดพลาดในการดึงข้อมูลสมาชิก" });
+    res.json(results);
+  });
+});
+
+// 2. API สำหรับกดอนุมัติผู้ใช้งาน (เปลี่ยนสถานะเป็น 1)
+app.put('/members/:id/approve', (req, res) => {
+  const userId = req.params.id;
+  const sql = "UPDATE members SET is_approved = 1 WHERE User_id = ?";
+  
+  db.query(sql, [userId], (err, result) => {
+    if (err) return res.status(500).json({ message: "เกิดข้อผิดพลาดในการอนุมัติผู้ใช้งาน" });
+    res.json({ status: 'success', message: "อนุมัติผู้ใช้งานเรียบร้อยแล้ว" });
+  });
+});
+
+// 3. API สำหรับกดปฏิเสธ/ลบผู้ใช้งานออกจากระบบ
+app.delete('/members/:id', (req, res) => {
+  const userId = req.params.id;
+  const sql = "DELETE FROM members WHERE User_id = ?";
+  
+  db.query(sql, [userId], (err, result) => {
+    if (err) return res.status(500).json({ message: "เกิดข้อผิดพลาดในการลบข้อมูลผู้ใช้งาน" });
+    res.json({ status: 'success', message: "ปฏิเสธและลบข้อมูลผู้ใช้งานเรียบร้อยแล้ว" });
   });
 });
