@@ -40,13 +40,13 @@ const upload = multer({ storage: storage });
 // ==========================================
 // API หมวด: สมาชิก (Members & Auth)
 // ==========================================
-app.get('/members', (req, res) => {
-    const sql = "SELECT User_id, Name, Email, PhoneNum, is_admin FROM members";
-    db.query(sql, (err, results) => {
-        if (err) return res.status(500).json(err);
-        res.json(results);
-    });
-});
+// app.get('/members', (req, res) => {
+//     const sql = "SELECT User_id, Name, Email, PhoneNum, is_admin FROM members";
+//     db.query(sql, (err, results) => {
+//         if (err) return res.status(500).json(err);
+//         res.json(results);
+//     });
+// });
 
 app.post('/register', (req, res) => {
     const { Name, Email, Password, PhoneNum } = req.body;

@@ -1,8 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
+
+
 const ManageUsers = () => {
   const [users, setUsers] = useState([]);
+
+  // พิมพ์ดูเลยว่าหลังบ้านส่งอะไรมาให้บ้าง!
+  console.log("ข้อมูลสมาชิกจากหลังบ้าน: ", users);
 
   const fetchUsers = async () => {
     try {
