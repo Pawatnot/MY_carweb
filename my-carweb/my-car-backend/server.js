@@ -184,6 +184,40 @@ app.put('/users/:id/password', (req, res) => {
     });
 });
 
+// API: ดึงข้อมูลส่วนตัวผู้ใช้ 1 คน (เพื่อเอามาโชว์ในหน้าโปรไฟล์)
+app.get('/users/:id', (req, res) => {
+    const userId = req.params.id;
+    const sql = "SELECT User_id, Name, Email, PhoneNum, is_admin FROM members WHERE User_id = ?";
+    
+    db.query(sql, [userId], (err, results) => {
+        if (err) {
+            console.error("Error fetching user:", err);
+            return res.status(500).json({ message: "เกิดข้อผิดพลาดในการดึงข้อมูล" });
+        }
+        if (results.length === 0) return res.status(404).json({ message: "ไม่พบผู้ใช้งาน" });
+        res.json(results[0]);
+    });
+});
+
+// API: อัปเดตข้อมูลส่วนตัวผู้ใช้ (Name, Email, PhoneNum)
+app.put('/users/:id', (req, res) => {
+    const userId = req.params.id;
+    const { Name, Email, PhoneNum } = req.body;
+
+    if (!Name || !Email || !PhoneNum) {
+        return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบถ้วน" });
+    }
+
+    const sql = "UPDATE members SET Name = ?, Email = ?, PhoneNum = ? WHERE User_id = ?";
+    db.query(sql, [Name, Email, PhoneNum, userId], (err, result) => {
+        if (err) {
+            console.error("Error updating user info:", err);
+            return res.status(500).json({ message: "เกิดข้อผิดพลาดในการอัปเดตข้อมูล" });
+        }
+        res.json({ message: "อัปเดตข้อมูลส่วนตัวสำเร็จ" });
+    });
+});
+
 // ==========================================
 // API หมวด: ยานพาหนะ (Vehicles)
 // ==========================================
