@@ -1,0 +1,31 @@
+{
+  "Toyota": [
+    "Vios",
+    "Yaris",
+    "Hilux Revo"
+  ],
+  "Honda": [
+    "Civic",
+    "City",
+    "HR-V",
+    "Wave"
+  ],
+  "Isuzu": [
+    "D-Max",
+    "MU-X"
+  ],
+  "BYD": [
+    "Dolphin",
+    "Atto 3",
+    "Seal"
+  ],
+  "Ford": [
+    "Ranger",
+    "Everest"
+  ],
+  "YAMAHA": [
+    "Fino",
+    "Filano"
+  ],
+  "Mercedes-Benz": []
+}

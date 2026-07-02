@@ -3,6 +3,7 @@ const mysql = require('mysql2');
 const cors = require('cors');
 const multer = require('multer'); 
 const path = require('path');     
+const fs = require('fs'); // 💡 ย้าย fs มารวมไว้ด้านบนให้เป็นระเบียบ
 
 const app = express();
 
@@ -20,10 +21,10 @@ const db = mysql.createConnection({
 
 db.connect(err => {
     if (err) {
-        console.error(' เชื่อมต่อฐานข้อมูลล้มเหลว:', err);
+        console.error('เชื่อมต่อฐานข้อมูลล้มเหลว:', err);
         return;
     }
-    console.log(' เชื่อมต่อ MySQL สำเร็จแล้ว!');
+    console.log('เชื่อมต่อ MySQL สำเร็จแล้ว!');
 });
 
 // ตั้งค่า Multer (อัปโหลดรูปภาพ)
@@ -38,16 +39,73 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 // ==========================================
+// ระบบจัดการไฟล์ Master Data (brands.json)
+// ==========================================
+const brandsFilePath = path.join(__dirname, 'brands.json');
+
+// ฟังก์ชันอ่านไฟล์ JSON (โครงสร้างใหม่ เก็บยี่ห้อ + รุ่น)
+const readBrandsFile = () => {
+    if (!fs.existsSync(brandsFilePath)) {
+        const initialData = {
+            "Toyota": ["Vios", "Yaris", "Hilux Revo"],
+            "Honda": ["Civic", "City", "HR-V"],
+            "Isuzu": ["D-Max", "MU-X"],
+            "BYD": ["Dolphin", "Atto 3", "Seal"],
+            "Ford": ["Ranger", "Everest"]
+        };
+        fs.writeFileSync(brandsFilePath, JSON.stringify(initialData, null, 2));
+    }
+    const data = fs.readFileSync(brandsFilePath);
+    return JSON.parse(data);
+};
+
+// ==========================================
+// API หมวด: Master Data (ยี่ห้อและรุ่นรถจากไฟล์ .json)
+// ==========================================
+// 1. ดึงข้อมูลยี่ห้อและรุ่นรถทั้งหมด
+app.get('/api/brands', (req, res) => {
+    try {
+        const data = readBrandsFile();
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ message: "เกิดข้อผิดพลาดในการดึงข้อมูล" });
+    }
+});
+
+// 2. แอดมินเพิ่มยี่ห้อ หรือ เพิ่มรุ่น
+app.post('/api/brands', (req, res) => {
+    const { brand, model } = req.body;
+    
+    if (!brand) return res.status(400).json({ message: "กรุณาระบุยี่ห้อรถ" });
+
+    try {
+        const data = readBrandsFile();
+        
+        // ถ้าส่งมาแค่ยี่ห้อใหม่ ให้สร้างโครงสร้างยี่ห้อเปล่าๆ
+        if (!data[brand]) {
+            data[brand] = [];
+        }
+
+        // ถ้ามีชื่อรุ่นส่งมาด้วย ให้เอาไปต่อท้ายใน Array ของยี่ห้อนั้น
+        if (model && model.trim() !== '') {
+            if (!data[brand].includes(model.trim())) {
+                data[brand].push(model.trim());
+            } else {
+                return res.status(400).json({ message: "มีรุ่นรถนี้ในระบบแล้ว" });
+            }
+        }
+
+        fs.writeFileSync(brandsFilePath, JSON.stringify(data, null, 2));
+        res.json({ status: 'success', message: "บันทึกข้อมูลสำเร็จ", data });
+    } catch (err) {
+        res.status(500).json({ message: "เกิดข้อผิดพลาดในการบันทึก" });
+    }
+});
+
+
+// ==========================================
 // API หมวด: สมาชิก (Members & Auth)
 // ==========================================
-// app.get('/members', (req, res) => {
-//     const sql = "SELECT User_id, Name, Email, PhoneNum, is_admin FROM members";
-//     db.query(sql, (err, results) => {
-//         if (err) return res.status(500).json(err);
-//         res.json(results);
-//     });
-// });
-
 app.post('/register', (req, res) => {
     const { Name, Email, Password, PhoneNum } = req.body;
     if (!Name || !Email || !Password || !PhoneNum) return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบ" });
@@ -62,27 +120,67 @@ app.post('/register', (req, res) => {
 app.post('/login', (req, res) => {
     const { Email, Password } = req.body;
     
-    // 💡 1. เพิ่ม is_approved ต่อท้ายเข้าไปในคำสั่ง SELECT 
     const sql = "SELECT User_id, Name, Email, is_admin, is_approved FROM members WHERE Email = ? AND Password = ?";
-    
     db.query(sql, [Email, Password], (err, results) => {
         if (err) return res.status(500).json({ message: "เกิดข้อผิดพลาดที่เซิร์ฟเวอร์" });
         
         if (results.length > 0) {
             const user = results[0];
             
-            // 💡 2. แทรกการเช็คสถานะการอนุมัติตรงนี้
             if (user.is_approved === 0) {
-                // ใช้ status 403 (Forbidden) เพื่อบอกว่ารหัสถูกนะ แต่ไม่มีสิทธิ์เข้า
                 return res.status(403).json({ message: "บัญชีของคุณยังไม่ได้รับการอนุมัติ กรุณารอแอดมินตรวจสอบ" });
             }
 
-            // 💡 3. ถ้าผ่านเงื่อนไขด้านบนมาได้ (is_approved = 1) ก็ให้เข้าสู่ระบบตามโค้ดเดิม
             res.json({ status: 'success', user_id: user.User_id, name: user.Name, is_admin: user.is_admin });
-            
         } else {
             res.status(401).json({ message: "อีเมลหรือรหัสผ่านไม่ถูกต้อง" });
         }
+    });
+});
+
+app.get('/members', (req, res) => {
+    const sql = "SELECT User_id, Name, Email, PhoneNum, is_admin, is_approved FROM members ORDER BY User_id DESC";
+    db.query(sql, (err, results) => {
+        if (err) return res.status(500).json({ message: "เกิดข้อผิดพลาดในการดึงข้อมูลสมาชิก" });
+        res.json(results);
+    });
+});
+
+app.put('/members/:id/approve', (req, res) => {
+    const userId = req.params.id;
+    const sql = "UPDATE members SET is_approved = 1 WHERE User_id = ?";
+    db.query(sql, [userId], (err, result) => {
+        if (err) return res.status(500).json({ message: "เกิดข้อผิดพลาดในการอนุมัติผู้ใช้งาน" });
+        res.json({ status: 'success', message: "อนุมัติผู้ใช้งานเรียบร้อยแล้ว" });
+    });
+});
+
+app.delete('/members/:id', (req, res) => {
+    const userId = req.params.id;
+    const sql = "DELETE FROM members WHERE User_id = ?";
+    db.query(sql, [userId], (err, result) => {
+        if (err) return res.status(500).json({ message: "เกิดข้อผิดพลาดในการลบข้อมูลผู้ใช้งาน" });
+        res.json({ status: 'success', message: "ปฏิเสธและลบข้อมูลผู้ใช้งานเรียบร้อยแล้ว" });
+    });
+});
+
+app.put('/users/:id/password', (req, res) => {
+    const userId = req.params.id;
+    const { currentPassword, newPassword } = req.body;
+
+    const checkSql = "SELECT * FROM members WHERE User_id = ? AND Password = ?";
+    db.query(checkSql, [userId, currentPassword], (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        
+        if (results.length === 0) {
+            return res.status(400).json({ message: "รหัสผ่านเดิมไม่ถูกต้อง" });
+        }
+
+        const updateSql = "UPDATE members SET Password = ? WHERE User_id = ?";
+        db.query(updateSql, [newPassword, userId], (err, updateResult) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ message: "เปลี่ยนรหัสผ่านสำเร็จ" });
+        });
     });
 });
 
@@ -97,9 +195,9 @@ app.get('/vehicles', (req, res) => {
     let params = [];
 
     if (isAdmin === '1') {
-        sql = "SELECT * FROM vehicle"; // แอดมินเห็นทุกคัน
+        sql = "SELECT * FROM vehicle"; 
     } else {
-        sql = "SELECT * FROM vehicle WHERE User_id = ?"; // ยูสเซอร์เห็นแค่รถตัวเอง
+        sql = "SELECT * FROM vehicle WHERE User_id = ?"; 
         params = [userId];
     }
 
@@ -109,7 +207,6 @@ app.get('/vehicles', (req, res) => {
     });
 });
 
-// ดึงข้อมูลรถ 1 คัน สำหรับนำไปแสดงในหน้าแก้ไข
 app.get('/vehicles/:id', (req, res) => {
     const id = req.params.id;
     const sql = "SELECT * FROM vehicle WHERE Vehicle_id = ?";
@@ -161,17 +258,15 @@ app.put('/vehicles/:id', upload.single('image'), (req, res) => {
     });
 });
 
-// ดึง "ยี่ห้อรถ" ที่มีอยู่ในระบบ (เอามาเฉพาะชื่อที่ไม่ซ้ำกัน)
+// API ชุดเก่า (ดึงข้อมูลตรงจากตาราง) เผื่อมีบางหน้ายังใช้อยู่ เจมเก็บไว้ให้เพื่อป้องกัน Error ครับ
 app.get('/vehicle-brands', (req, res) => {
     const sql = "SELECT DISTINCT Brand FROM vehicle WHERE Brand IS NOT NULL AND Brand != '' ORDER BY Brand ASC";
     db.query(sql, (err, results) => {
         if (err) return res.status(500).json(err);
-        // แปลงข้อมูลให้อยู่ในรูป Array ของชื่อยี่ห้อเพียวๆ: ['Honda', 'Toyota', 'Yamaha']
         res.json(results.map(row => row.Brand));
     });
 });
 
-// ดึง "รุ่นรถ" ตามยี่ห้อที่เลือก (เอามาเฉพาะชื่อที่ไม่ซ้ำกัน)
 app.get('/vehicle-models', (req, res) => {
     const brand = req.query.brand;
     const sql = "SELECT DISTINCT Model FROM vehicle WHERE Brand = ? AND Model IS NOT NULL AND Model != '' ORDER BY Model ASC";
@@ -225,7 +320,6 @@ app.get('/expenses', (req, res) => {
     `;
     let params = [];
 
-    // ถ้าไม่ใช่ Admin ให้ดึงแค่บิลรถของตัวเอง
     if (isAdmin !== '1') {
         sql += " WHERE v.User_id = ?";
         params.push(userId);
@@ -238,33 +332,26 @@ app.get('/expenses', (req, res) => {
     });
 });
 
-// 2. API บันทึกรายจ่ายใหม่ลงตาราง
 app.post('/expenses', (req, res) => {
     const { Vehicle_id, Amount_of_money, expenses_type_id, Expense_Date, payment_status, Detail } = req.body;
     const finalDate = Expense_Date ? Expense_Date : null;
     
     const sql = "INSERT INTO vehicle_expenses (Vehicle_id, Amount_of_money, expenses_type_id, Expense_Date, payment_status, Detail) VALUES (?, ?, ?, ?, ?, ?)";
-    
     db.query(sql, [Vehicle_id, Amount_of_money, expenses_type_id, finalDate, payment_status, Detail], (err, result) => {
         if (err) {
             console.error("Error POST expenses:", err);
             return res.status(500).json({ message: "เกิดข้อผิดพลาดในการบันทึก" });
         }
-        // แก้ไขบรรทัดนี้: ให้แนบ insertId กลับไปด้วย
         res.status(201).json({ message: "บันทึกรายจ่ายสำเร็จ!", insertId: result.insertId });
     });
 });
 
-// 3. API อัปเดตสถานะการจ่ายเงินจากหน้า Card
 app.put('/expenses/:id/status', (req, res) => {
     const id = req.params.id;
     const { payment_status, Expense_Date } = req.body;
-
-    // ถ้ายังไม่จ่าย (0) ให้แปลงวันที่เป็น null
     const finalDate = (payment_status === 1 && Expense_Date) ? Expense_Date : null;
 
     const sql = "UPDATE vehicle_expenses SET payment_status = ?, Expense_Date = ? WHERE Expenses_id = ?";
-    
     db.query(sql, [payment_status, finalDate, id], (err, result) => {
         if (err) {
             console.error("Error updating status:", err);
@@ -277,13 +364,10 @@ app.put('/expenses/:id/status', (req, res) => {
 // ==========================================
 // ระบบกำหนดการ (Vehicle_Schedules)
 // ==========================================
-
-// 1. ดึงข้อมูลกำหนดการทั้งหมด (แสดงพร้อมทะเบียนรถ)
 app.get('/schedules', (req, res) => {
   const userId = req.query.user_id;
   const isAdmin = req.query.is_admin;
 
-  // JOIN ตารางรถ เพื่อเอาทะเบียน (vehicle_registration) มาโชว์
   let sql = `
     SELECT s.*, v.vehicle_registration, v.Brand, v.Model 
     FROM Vehicle_Schedules s
@@ -291,13 +375,11 @@ app.get('/schedules', (req, res) => {
   `;
   let params = [];
 
-  // ถ้าไม่ใช่ Admin ให้ดูได้เฉพาะรถของตัวเอง
   if (isAdmin !== '1') {
     sql += ` WHERE v.User_id = ?`;
     params.push(userId);
   }
   
-  // เรียงลำดับจากวันที่ใกล้หมดอายุก่อน (อันไหนจะหมดอายุให้อยู่บนสุด)
   sql += ` ORDER BY s.Expiry_Date ASC`;
 
   db.query(sql, params, (err, results) => {
@@ -306,11 +388,8 @@ app.get('/schedules', (req, res) => {
   });
 });
 
-// 2. เพิ่มกำหนดการใหม่ (Manual)
 app.post('/schedules', (req, res) => {
   const { Vehicle_id, expenses_id, Item_Name, Expiry_Date } = req.body;
-  
-  // expenses_id สามารถเป็น null ได้ถ้าเราเพิ่มแบบ manual โดยไม่ผ่านหน้ารายจ่าย
   const sql = "INSERT INTO Vehicle_Schedules (Vehicle_id, expenses_id, Item_Name, Expiry_Date) VALUES (?, ?, ?, ?)";
   
   db.query(sql, [Vehicle_id, expenses_id || null, Item_Name, Expiry_Date], (err, result) => {
@@ -319,7 +398,6 @@ app.post('/schedules', (req, res) => {
   });
 });
 
-// 3. อัปเดตสถานะการดำเนินการของกำหนดการ (is_completed)
 app.put('/schedules/:id/status', (req, res) => {
   const scheduleId = req.params.id;
   const { is_completed } = req.body;
@@ -333,64 +411,78 @@ app.put('/schedules/:id/status', (req, res) => {
     res.json({ message: 'อัปเดตสถานะเรียบร้อยแล้ว', result });
   });
 });
-// ============================================
 
+// ==========================================
+// API หมวด: การแจ้งเตือน (Notifications)
+// ==========================================
+// ประกาศตำแหน่งไฟล์สำหรับเก็บข้อมูลแจ้งเตือน
+const requestsFilePath = path.join(__dirname, 'requests.json');
+
+app.post('/notifications', (req, res) => {
+    const { Message } = req.body;
+    
+    if (!Message) {
+        return res.status(400).json({ message: "ข้อมูลไม่ครบถ้วน" });
+    }
+
+    try {
+        let requestsData = [];
+        if (fs.existsSync(requestsFilePath)) {
+            const fileData = fs.readFileSync(requestsFilePath);
+            requestsData = JSON.parse(fileData);
+        }
+
+        const newRequest = {
+            id: Date.now(),
+            message: Message,
+            status: "รอตรวจสอบ",
+            date: new Date().toLocaleString('th-TH')
+        };
+        
+        requestsData.push(newRequest);
+        fs.writeFileSync(requestsFilePath, JSON.stringify(requestsData, null, 2));
+        
+        res.status(201).json({ message: "ส่งคำขอสำเร็จ แอดมินจะตรวจสอบเร็วๆ นี้" });
+    } catch (err) {
+        console.error("Error saving request:", err);
+        res.status(500).json({ message: "เกิดข้อผิดพลาดในการส่งคำขอ" });
+    }
+});
+
+// API: แอดมินดึงข้อมูลแจ้งเตือนทั้งหมดมาดู (GET)
+app.get('/notifications', (req, res) => {
+    try {
+        if (fs.existsSync(requestsFilePath)) {
+            const fileData = fs.readFileSync(requestsFilePath);
+            res.json(JSON.parse(fileData));
+        } else {
+            res.json([]); // ถ้ายังไม่มีไฟล์ ให้ส่ง Array ว่างกลับไป
+        }
+    } catch (err) {
+        res.status(500).json({ message: "เกิดข้อผิดพลาดในการอ่านแจ้งเตือน" });
+    }
+});
+
+// API: แอดมินลบการแจ้งเตือนเมื่อจัดการเสร็จแล้ว (DELETE)
+app.delete('/notifications/:id', (req, res) => {
+    const id = parseInt(req.params.id);
+    try {
+        if (fs.existsSync(requestsFilePath)) {
+            let requestsData = JSON.parse(fs.readFileSync(requestsFilePath));
+            // กรองเอาเฉพาะอันที่ ID ไม่ตรงกับที่ส่งมา (เป็นการลบตัวที่เลือกทิ้ง)
+            requestsData = requestsData.filter(req => req.id !== id);
+            fs.writeFileSync(requestsFilePath, JSON.stringify(requestsData, null, 2));
+        }
+        res.json({ message: "ลบการแจ้งเตือนสำเร็จ" });
+    } catch (err) {
+        res.status(500).json({ message: "เกิดข้อผิดพลาดในการลบแจ้งเตือน" });
+    }
+});
+
+// ============================================
+// เปิด Server
+// ============================================
 const PORT = 5000;
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
-});
-
-// API สำหรับเปลี่ยนรหัสผ่าน
-app.put('/users/:id/password', (req, res) => {
-  const userId = req.params.id;
-  const { currentPassword, newPassword } = req.body;
-
-  // 1. เช็ครหัสผ่านเดิมก่อนว่าถูกต้องไหม (สมมติว่าคอลัมน์ชื่อ Password)
-  const checkSql = "SELECT * FROM members WHERE User_id = ? AND Password = ?";
-  db.query(checkSql, [userId, currentPassword], (err, results) => {
-    if (err) return res.status(500).json({ error: err.message });
-    
-    if (results.length === 0) {
-      return res.status(400).json({ message: "รหัสผ่านเดิมไม่ถูกต้อง" });
-    }
-
-    // 2. ถ้ารหัสเดิมถูกต้อง ให้อัปเดตเป็นรหัสผ่านใหม่
-    const updateSql = "UPDATE members SET Password = ? WHERE User_id = ?";
-    db.query(updateSql, [newPassword, userId], (err, updateResult) => {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json({ message: "เปลี่ยนรหัสผ่านสำเร็จ" });
-    });
-  });
-});
-
-// 1. API สำหรับดึงรายชื่อสมาชิกทั้งหมด (ดึงทุกคอลัมน์ยกเว้น Password เพื่อความปลอดภัย)
-app.get('/members', (req, res) => {
-  const sql = "SELECT User_id, Name, Email, PhoneNum, is_admin, is_approved FROM members ORDER BY User_id DESC";
-  
-  db.query(sql, (err, results) => {
-    if (err) return res.status(500).json({ message: "เกิดข้อผิดพลาดในการดึงข้อมูลสมาชิก" });
-    res.json(results);
-  });
-});
-
-// 2. API สำหรับกดอนุมัติผู้ใช้งาน (เปลี่ยนสถานะเป็น 1)
-app.put('/members/:id/approve', (req, res) => {
-  const userId = req.params.id;
-  const sql = "UPDATE members SET is_approved = 1 WHERE User_id = ?";
-  
-  db.query(sql, [userId], (err, result) => {
-    if (err) return res.status(500).json({ message: "เกิดข้อผิดพลาดในการอนุมัติผู้ใช้งาน" });
-    res.json({ status: 'success', message: "อนุมัติผู้ใช้งานเรียบร้อยแล้ว" });
-  });
-});
-
-// 3. API สำหรับกดปฏิเสธ/ลบผู้ใช้งานออกจากระบบ
-app.delete('/members/:id', (req, res) => {
-  const userId = req.params.id;
-  const sql = "DELETE FROM members WHERE User_id = ?";
-  
-  db.query(sql, [userId], (err, result) => {
-    if (err) return res.status(500).json({ message: "เกิดข้อผิดพลาดในการลบข้อมูลผู้ใช้งาน" });
-    res.json({ status: 'success', message: "ปฏิเสธและลบข้อมูลผู้ใช้งานเรียบร้อยแล้ว" });
-  });
 });
