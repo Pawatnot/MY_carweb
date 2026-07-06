@@ -102,6 +102,76 @@ app.post('/api/brands', (req, res) => {
     }
 });
 
+// 3. แอดมินแก้ไขชื่อยี่ห้อ
+app.put('/api/brands/:oldBrand', (req, res) => {
+    const oldBrand = req.params.oldBrand;
+    const { newBrand } = req.body;
+    try {
+        const data = readBrandsFile();
+        if (!data[oldBrand]) return res.status(404).json({ message: "ไม่พบยี่ห้อนี้" });
+        if (data[newBrand]) return res.status(400).json({ message: "มียี่ห้อนี้ซ้ำในระบบแล้ว" });
+
+        // ย้ายข้อมูลรุ่นรถไปที่ key ใหม่ แล้วลบ key เก่าทิ้ง
+        data[newBrand] = data[oldBrand];
+        delete data[oldBrand];
+
+        fs.writeFileSync(brandsFilePath, JSON.stringify(data, null, 2));
+        res.json({ message: "อัปเดตยี่ห้อสำเร็จ" });
+    } catch (err) {
+        res.status(500).json({ message: "เกิดข้อผิดพลาด" });
+    }
+});
+
+// 4. แอดมินลบยี่ห้อ
+app.delete('/api/brands/:brand', (req, res) => {
+    const brand = req.params.brand;
+    try {
+        const data = readBrandsFile();
+        if (!data[brand]) return res.status(404).json({ message: "ไม่พบยี่ห้อนี้" });
+
+        delete data[brand];
+        fs.writeFileSync(brandsFilePath, JSON.stringify(data, null, 2));
+        res.json({ message: "ลบยี่ห้อสำเร็จ" });
+    } catch (err) {
+        res.status(500).json({ message: "เกิดข้อผิดพลาด" });
+    }
+});
+
+// 5. แอดมินแก้ไขชื่อรุ่น
+app.put('/api/brands/:brand/models/:oldModel', (req, res) => {
+    const { brand, oldModel } = req.params;
+    const { newModel } = req.body;
+    try {
+        const data = readBrandsFile();
+        if (!data[brand]) return res.status(404).json({ message: "ไม่พบยี่ห้อนี้" });
+
+        const modelIndex = data[brand].indexOf(oldModel);
+        if (modelIndex === -1) return res.status(404).json({ message: "ไม่พบรุ่นนี้" });
+        if (data[brand].includes(newModel)) return res.status(400).json({ message: "มีรุ่นนี้ซ้ำในระบบแล้ว" });
+
+        data[brand][modelIndex] = newModel;
+        fs.writeFileSync(brandsFilePath, JSON.stringify(data, null, 2));
+        res.json({ message: "อัปเดตรุ่นสำเร็จ" });
+    } catch (err) {
+        res.status(500).json({ message: "เกิดข้อผิดพลาด" });
+    }
+});
+
+// 6. แอดมินลบรุ่น
+app.delete('/api/brands/:brand/models/:model', (req, res) => {
+    const { brand, model } = req.params;
+    try {
+        const data = readBrandsFile();
+        if (!data[brand]) return res.status(404).json({ message: "ไม่พบยี่ห้อนี้" });
+
+        data[brand] = data[brand].filter(m => m !== model);
+        fs.writeFileSync(brandsFilePath, JSON.stringify(data, null, 2));
+        res.json({ message: "ลบรุ่นสำเร็จ" });
+    } catch (err) {
+        res.status(500).json({ message: "เกิดข้อผิดพลาด" });
+    }
+});
+
 
 // ==========================================
 // API หมวด: สมาชิก (Members & Auth)
