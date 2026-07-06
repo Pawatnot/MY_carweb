@@ -8,17 +8,20 @@ const VehicleList = () => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const [selectedVehicle, setSelectedVehicle] = useState(null);
+  
+  // State สำหรับตรวจจับว่าเมาส์กำลังชี้อยู่ที่การ์ดใบไหน
+  const [hoveredCard, setHoveredCard] = useState(null);
 
   useEffect(() => {
     fetchVehicles();
   }, []);
 
   const fetchVehicles = () => {
-    // ✅ 1. ดึงไอดีและสิทธิ์จาก localStorage ของคนที่กำลังล็อกอินอยู่
+    // 1. ดึงไอดีและสิทธิ์จาก localStorage ของคนที่กำลังล็อกอินอยู่
     const userId = localStorage.getItem('user_id');
     const isAdmin = localStorage.getItem('is_admin');
 
-    // ✅ 2. ส่งค่าพารามิเตอร์ (params) ไปให้หลังบ้านด้วย
+    // 2. ส่งค่าพารามิเตอร์ (params) ไปให้หลังบ้านด้วย
     axios.get('http://localhost:5000/vehicles', {
       params: { 
         user_id: userId, 
@@ -36,12 +39,12 @@ const VehicleList = () => {
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm("⚠️ คุณแน่ใจหรือไม่ที่จะลบรถคันนี้?")) {
+    if (window.confirm("คุณแน่ใจหรือไม่ที่จะลบรถคันนี้?")) {
       try {
         await axios.delete(`http://localhost:5000/vehicles/${id}`);
         setCars(cars.filter(car => car.Vehicle_id !== id));
         setSelectedVehicle(null);
-        alert("✅ ลบเรียบร้อย");
+        alert("ลบเรียบร้อย");
       } catch (error) {
         console.error("Error deleting:", error);
       }
@@ -57,16 +60,14 @@ const VehicleList = () => {
   return (
     <div style={{ padding: '30px', backgroundColor: '#F9F8F4', minHeight: '100vh', boxSizing: 'border-box' }}>
       
-      {/* ✅ ส่วนหัวข้อ + ปุ่มเพิ่มรถ (แบบ Button มีไอคอน + ข้อความ) */}
+      {/* ส่วนหัวข้อ + ปุ่มเพิ่มรถ */}
       <div style={styles.headerContainer}>
-        <h2 style={{ color: '#2c3e50', margin: 0 }}>รายการรถของฉัน</h2>
+        <h2 style={{ color: '#2c3e50', margin: 0 }}>รายการยานพาหนะของฉัน</h2>
         
-        {/* เปลี่ยนเป็น <button> จริงๆ */}
         <button 
           onClick={() => navigate('/add-vehicle')} 
           style={styles.addBtn}
         >
-          {/* เอารูปมาใส่เป็นไอคอนข้างในปุ่ม */}
           <img src={addIcon} alt="icon" style={styles.btnIcon} />
           เพิ่มยานพาหนะ
         </button>
@@ -83,7 +84,18 @@ const VehicleList = () => {
       ) : (
         <div style={styles.grid}>
           {cars.map((car) => (
-            <div key={car.Vehicle_id} style={styles.card} onClick={() => setSelectedVehicle(car)}>
+            <div 
+              key={car.Vehicle_id} 
+              // ใส่ลูกเล่นให้การ์ดขยับและมีเงาเมื่อเอาเมาส์ไปชี้
+              style={{
+                ...styles.card,
+                transform: hoveredCard === car.Vehicle_id ? 'translateY(-8px)' : 'translateY(0)',
+                boxShadow: hoveredCard === car.Vehicle_id ? '0 12px 20px rgba(0,0,0,0.15)' : '0 2px 5px rgba(0,0,0,0.05)'
+              }} 
+              onClick={() => setSelectedVehicle(car)}
+              onMouseEnter={() => setHoveredCard(car.Vehicle_id)}
+              onMouseLeave={() => setHoveredCard(null)}
+            >
               {car.Vehicle_image ? (
                 <img src={`http://localhost:5000/uploads/${car.Vehicle_image}`} alt={car.Model} style={styles.thumbnail}/>
               ) : (
@@ -120,13 +132,6 @@ const VehicleList = () => {
             </div>
 
             <div style={styles.actionButtons}>
-               <button 
-                  style={{...styles.editBtn, backgroundColor: '#3498db', marginRight: '10px'}}
-                  onClick={() => navigate(`/maintenance/${selectedVehicle.Vehicle_id}`)}
-                >
-                  🔧 ประวัติซ่อม
-               </button>
-
                <button style={styles.editBtn} onClick={() => navigate(`/edit-vehicle/${selectedVehicle.Vehicle_id}`)}> แก้ไข</button>
                <button style={styles.deleteBtn} onClick={() => handleDelete(selectedVehicle.Vehicle_id)}> ลบข้อมูล</button>
             </div>
@@ -144,31 +149,28 @@ const styles = {
     alignItems: 'center', 
     marginBottom: '20px' 
   },
-  
-  // ✅ Style ปุ่มกดแบบใหม่ (Button + Icon + Text)
   addBtn: {
     display: 'flex',
     alignItems: 'center',
-    gap: '10px', // ระยะห่างระหว่างไอคอนกับข้อความ
-    backgroundColor: '#fff', // พื้นหลังขาว
-    border: '2px solid #27ae60', // ขอบเขียว
-    color: '#27ae60', // ตัวหนังสือเขียว
+    gap: '10px',
+    backgroundColor: '#fff',
+    border: '2px solid #27ae60',
+    color: '#27ae60',
     padding: '8px 20px',
-    borderRadius: '30px', // ทำมุมโค้งมนเหมือนแคปซูล
+    borderRadius: '30px',
     cursor: 'pointer',
     fontSize: '16px',
     fontWeight: 'bold',
     transition: '0.3s',
     boxShadow: '0 2px 5px rgba(0,0,0,0.1)'
   },
-  // ✅ Style สำหรับไอคอนในปุ่ม
   btnIcon: {
     width: '24px',
     height: '24px'
   },
-
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' },
-  card: { border: '1px solid #ddd', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', backgroundColor: 'white', cursor: 'pointer', transition: 'transform 0.2s' },
+  // ปรับ transition ให้เด้งสมูทขึ้น
+  card: { border: '1px solid #ddd', borderRadius: '12px', overflow: 'hidden', backgroundColor: 'white', cursor: 'pointer', transition: 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s ease' },
   thumbnail: { width: '100%', height: '180px', objectFit: 'cover', borderBottom: '1px solid #eee' },
   noImagePlaceholder: { width: '100%', height: '180px', backgroundColor: '#ecf0f1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bdc3c7', fontSize: '18px', fontWeight: 'bold' },
   tag: { backgroundColor: '#eaf2f8', color: '#3498db', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' },

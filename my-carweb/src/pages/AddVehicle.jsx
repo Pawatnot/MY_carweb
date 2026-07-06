@@ -15,6 +15,10 @@ const AddVehicle = () => {
   
   const [isBrandModalOpen, setIsBrandModalOpen] = useState(false);
   const [isModelModalOpen, setIsModelModalOpen] = useState(false);
+  
+  // State สำหรับหน้าต่างจัดการข้อมูล
+  const [isManageModalOpen, setIsManageModalOpen] = useState(false);
+
   const [newBrandInput, setNewBrandInput] = useState('');
   const [adminSelectedBrand, setAdminSelectedBrand] = useState('');
   const [newModelInput, setNewModelInput] = useState('');
@@ -38,9 +42,7 @@ const AddVehicle = () => {
       setIsAdmin(adminStatus === '1');
       fetchBrandsData(); 
       
-      if (adminStatus === '1') {
-        fetchRequests();
-      }
+      if (adminStatus === '1') fetchRequests();
     } else {
       alert("กรุณาเข้าสู่ระบบก่อน");
       navigate('/login');
@@ -50,24 +52,15 @@ const AddVehicle = () => {
   const fetchRequests = async () => {
     try {
       const res = await axios.get('http://localhost:5000/notifications');
-      const requests = res.data;
-      setPendingRequests(requests);
-      
-      if (requests.length > 0) {
-        alert(`คุณมีคำขอเพิ่มยี่ห้อ/รุ่นรถใหม่จำนวน ${requests.length} รายการ กรุณาตรวจสอบที่ปุ่มแจ้งเตือนครับ`);
-      }
-    } catch (err) {
-      console.error("Error fetching requests:", err);
-    }
+      setPendingRequests(res.data);
+    } catch (err) { console.error(err); }
   };
 
   const handleDeleteRequest = async (id) => {
     try {
       await axios.delete(`http://localhost:5000/notifications/${id}`);
       setPendingRequests(pendingRequests.filter(req => req.id !== id));
-    } catch (err) {
-      alert("เกิดข้อผิดพลาดในการลบการแจ้งเตือน");
-    }
+    } catch (err) { alert("เกิดข้อผิดพลาดในการลบการแจ้งเตือน"); }
   };
 
   const fetchBrandsData = async () => {
@@ -103,14 +96,50 @@ const AddVehicle = () => {
   const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
   const handleFileChange = (e) => setSelectedFile(e.target.files[0]);
 
+  // ================= ฟังก์ชันจัดการแก้ไขและลบ =================
+  const handleEditBrand = async (oldBrand) => {
+    const newBrand = window.prompt(`แก้ไขชื่อยี่ห้อ (เดิม: ${oldBrand}):`, oldBrand);
+    if (!newBrand || newBrand === oldBrand) return;
+    try {
+      await axios.put(`http://localhost:5000/api/brands/${oldBrand}`, { newBrand });
+      fetchBrandsData();
+    } catch (error) { alert(error.response?.data?.message || 'เกิดข้อผิดพลาด'); }
+  };
+
+  const handleDeleteBrand = async (brand) => {
+    if (!window.confirm(`คำเตือน: คุณต้องการลบยี่ห้อ "${brand}" พร้อมรุ่นรถทั้งหมดข้างในใช่หรือไม่?`)) return;
+    try {
+      await axios.delete(`http://localhost:5000/api/brands/${brand}`);
+      if (formData.Brand === brand) setFormData({...formData, Brand: '', Model: ''});
+      fetchBrandsData();
+    } catch (error) { alert('เกิดข้อผิดพลาด'); }
+  };
+
+  const handleEditModel = async (brand, oldModel) => {
+    const newModel = window.prompt(`แก้ไขชื่อรุ่นของยี่ห้อ ${brand} (เดิม: ${oldModel}):`, oldModel);
+    if (!newModel || newModel === oldModel) return;
+    try {
+      await axios.put(`http://localhost:5000/api/brands/${brand}/models/${oldModel}`, { newModel });
+      fetchBrandsData();
+    } catch (error) { alert(error.response?.data?.message || 'เกิดข้อผิดพลาด'); }
+  };
+
+  const handleDeleteModel = async (brand, model) => {
+    if (!window.confirm(`ยืนยันการลบรุ่น "${model}" ออกจากยี่ห้อ ${brand} หรือไม่?`)) return;
+    try {
+      await axios.delete(`http://localhost:5000/api/brands/${brand}/models/${model}`);
+      if (formData.Model === model) setFormData({...formData, Model: ''});
+      fetchBrandsData();
+    } catch (error) { alert('เกิดข้อผิดพลาด'); }
+  };
+
+  // ================= ฟังก์ชันเพิ่มข้อมูล =================
   const handleAdminSaveBrand = async (e) => {
     e.preventDefault();
     if (!newBrandInput.trim()) return alert('กรุณาพิมพ์ยี่ห้อ');
     try {
       await axios.post('http://localhost:5000/api/brands', { brand: newBrandInput });
-      alert("เพิ่มยี่ห้อใหม่สำเร็จ");
-      fetchBrandsData(); 
-      setIsBrandModalOpen(false); setNewBrandInput('');
+      fetchBrandsData(); setIsBrandModalOpen(false); setNewBrandInput('');
     } catch (error) { alert('เกิดข้อผิดพลาด'); }
   };
 
@@ -119,9 +148,7 @@ const AddVehicle = () => {
     if (!adminSelectedBrand || !newModelInput.trim()) return alert('กรุณาเลือกยี่ห้อและพิมพ์รุ่น');
     try {
       await axios.post('http://localhost:5000/api/brands', { brand: adminSelectedBrand, model: newModelInput });
-      alert(`เพิ่มรุ่น ${newModelInput} เข้าสู่ยี่ห้อ ${adminSelectedBrand} สำเร็จ`);
-      fetchBrandsData(); 
-      setIsModelModalOpen(false); setNewModelInput(''); setAdminSelectedBrand('');
+      fetchBrandsData(); setIsModelModalOpen(false); setNewModelInput(''); setAdminSelectedBrand('');
     } catch (error) { alert(error.response?.data?.message || 'เกิดข้อผิดพลาด'); }
   };
 
@@ -131,9 +158,7 @@ const AddVehicle = () => {
       await axios.post('http://localhost:5000/notifications', { Message: notifyText });
       alert('ส่งคำขอเรียบร้อย แอดมินจะดำเนินการเร็วๆ นี้');
       setIsNotifyModalOpen(false); setNotifyText('');
-    } catch (error) {
-      alert('เกิดข้อผิดพลาดในการส่งแจ้งเตือน');
-    }
+    } catch (error) { alert('เกิดข้อผิดพลาดในการส่งแจ้งเตือน'); }
   };
 
   const handleSubmit = async (e) => {
@@ -149,9 +174,7 @@ const AddVehicle = () => {
       data.append('Vehicle_Type', formData.Vehicle_Type);
       if (selectedFile) data.append('image', selectedFile); 
 
-      await axios.post('http://localhost:5000/vehicles', data, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
+      await axios.post('http://localhost:5000/vehicles', data, { headers: { 'Content-Type': 'multipart/form-data' } });
       alert("เพิ่มรถสำเร็จแล้ว!"); navigate('/vehicles');
     } catch (error) { alert("เกิดข้อผิดพลาดในการเพิ่มรถ"); }
   };
@@ -167,30 +190,35 @@ const AddVehicle = () => {
               <p style={{ fontSize: '13px', color: '#7f8c8d', margin: 0 }}>เพิ่มยี่ห้อหรือรุ่นรถได้ทันที</p>
             </div>
             
-            <div style={{ position: 'relative' }}>
-              <button onClick={() => setIsBellOpen(!isBellOpen)} style={styles.bellBtn}>
-                แจ้งเตือน 
-                {pendingRequests.length > 0 && <span style={styles.badge}>{pendingRequests.length}</span>}
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <button onClick={() => setIsManageModalOpen(true)} style={styles.manageBtn}>
+                จัดการข้อมูล
               </button>
               
-              {isBellOpen && (
-                <div style={styles.notificationDropdown}>
-                  <h5 style={{ margin: '0 0 10px 0', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>ข้อความคำขอจากผู้ใช้</h5>
-                  {pendingRequests.length === 0 ? (
-                    <p style={{ fontSize: '13px', color: '#7f8c8d', textAlign: 'center', margin: 0 }}>ไม่มีแจ้งเตือนใหม่</p>
-                  ) : (
-                    pendingRequests.map((req) => (
-                      <div key={req.id} style={styles.notificationItem}>
-                        <p style={{ margin: '0 0 5px 0', fontSize: '14px', fontWeight: 'bold' }}>{req.message}</p>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontSize: '11px', color: '#95a5a6' }}>{req.date}</span>
-                          <button onClick={() => handleDeleteRequest(req.id)} style={styles.clearBtn}>ลบทิ้ง</button>
+              <div style={{ position: 'relative' }}>
+                <button onClick={() => setIsBellOpen(!isBellOpen)} style={styles.bellBtn}>
+                  แจ้งเตือน 
+                  {pendingRequests.length > 0 && <span style={styles.badge}>{pendingRequests.length}</span>}
+                </button>
+                {isBellOpen && (
+                  <div style={styles.notificationDropdown}>
+                    <h5 style={{ margin: '0 0 10px 0', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>ข้อความคำขอจากผู้ใช้</h5>
+                    {pendingRequests.length === 0 ? (
+                      <p style={{ fontSize: '13px', color: '#7f8c8d', textAlign: 'center', margin: 0 }}>ไม่มีแจ้งเตือนใหม่</p>
+                    ) : (
+                      pendingRequests.map((req) => (
+                        <div key={req.id} style={styles.notificationItem}>
+                          <p style={{ margin: '0 0 5px 0', fontSize: '14px', fontWeight: 'bold' }}>{req.message}</p>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '11px', color: '#95a5a6' }}>{req.date}</span>
+                            <button onClick={() => handleDeleteRequest(req.id)} style={styles.clearBtn}>ลบทิ้ง</button>
+                          </div>
                         </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -204,7 +232,6 @@ const AddVehicle = () => {
       <h2 style={{ color: '#2c3e50', marginBottom: '20px' }}>เพิ่มรถคันใหม่</h2>
       
       <form onSubmit={handleSubmit} style={styles.form}>
-        
         <div style={styles.formGroup}>
           <label style={styles.label}>ยี่ห้อ (Brand)</label>
           <select style={styles.select} required value={formData.Brand} onChange={handleBrandSelect}>
@@ -245,12 +272,51 @@ const AddVehicle = () => {
         <button type="submit" style={styles.submitBtn}>บันทึกข้อมูลรถ</button>
       </form>
 
-      {isBrandModalOpen && isAdmin && (
+      {/* ================= Popup: หน้าต่างจัดการข้อมูล (แก้ไข/ลบ) ================= */}
+      {isManageModalOpen && isAdmin && (
+        <div style={styles.modalOverlay}>
+          <div style={{...styles.modalContent, width: '450px', maxHeight: '80vh', overflowY: 'auto'}}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+              <h3 style={{ margin: 0, color: '#2c3e50' }}>จัดการยี่ห้อและรุ่นรถ</h3>
+              <button onClick={() => setIsManageModalOpen(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>✖</button>
+            </div>
+            
+            {brandOptions.length === 0 ? <p style={{textAlign: 'center', color: '#7f8c8d'}}>ยังไม่มีข้อมูลในระบบ</p> : null}
+            
+            {brandOptions.map(brand => (
+              <div key={brand} style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '8px', border: '1px solid #e9ecef' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', paddingBottom: '5px', borderBottom: '2px solid #dee2e6' }}>
+                  <strong style={{ fontSize: '16px', color: '#d35400' }}>{brand}</strong>
+                  <div>
+                    <button onClick={() => handleEditBrand(brand)} style={styles.iconBtnText}>แก้ไข</button>
+                    <button onClick={() => handleDeleteBrand(brand)} style={{...styles.iconBtnText, color: '#c0392b'}}>ลบ</button>
+                  </div>
+                </div>
+                
+                {brandsData[brand].length === 0 ? <span style={{fontSize: '13px', color: '#aaa'}}>ไม่มีรุ่นรถ</span> : null}
+                
+                {brandsData[brand].map(model => (
+                  <div key={model} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0 5px 15px', fontSize: '14px' }}>
+                    <span>- {model}</span>
+                    <div>
+                      <button onClick={() => handleEditModel(brand, model)} style={{...styles.iconBtnText, fontSize: '12px'}}>แก้ไข</button>
+                      <button onClick={() => handleDeleteModel(brand, model)} style={{...styles.iconBtnText, color: '#c0392b', fontSize: '12px'}}>ลบ</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Popup อื่นๆ */}
+      {isBrandModalOpen && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalContent}>
-            <h3 style={{ marginTop: 0, color: '#2c3e50', marginBottom: '15px' }}>เพิ่มยี่ห้อใหม่</h3>
-            <input type="text" value={newBrandInput} onChange={(e) => setNewBrandInput(e.target.value)} placeholder="พิมพ์ยี่ห้อใหม่..." style={styles.modalInput} autoFocus />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+            <h3 style={{ marginTop: 0 }}>เพิ่มยี่ห้อใหม่</h3>
+            <input type="text" value={newBrandInput} onChange={(e) => setNewBrandInput(e.target.value)} placeholder="พิมพ์ยี่ห้อ..." style={styles.modalInput} autoFocus />
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
               <button type="button" onClick={() => setIsBrandModalOpen(false)} style={styles.cancelBtn}>ปิด</button>
               <button onClick={handleAdminSaveBrand} style={styles.saveBtn}>บันทึก</button>
             </div>
@@ -258,16 +324,16 @@ const AddVehicle = () => {
         </div>
       )}
 
-      {isModelModalOpen && isAdmin && (
+      {isModelModalOpen && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalContent}>
-            <h3 style={{ marginTop: 0, color: '#2c3e50', marginBottom: '15px' }}>เพิ่มรุ่นรถใหม่</h3>
+            <h3 style={{ marginTop: 0 }}>เพิ่มรุ่นรถใหม่</h3>
             <select value={adminSelectedBrand} onChange={(e) => setAdminSelectedBrand(e.target.value)} style={{...styles.modalInput, marginBottom: '10px'}}>
               <option value="">-- เลือกยี่ห้อก่อน --</option>
               {brandOptions.map(b => <option key={b} value={b}>{b}</option>)}
             </select>
-            <input type="text" value={newModelInput} onChange={(e) => setNewModelInput(e.target.value)} placeholder="พิมพ์รุ่นใหม่..." style={styles.modalInput} />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+            <input type="text" value={newModelInput} onChange={(e) => setNewModelInput(e.target.value)} placeholder="พิมพ์รุ่น..." style={styles.modalInput} />
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
               <button type="button" onClick={() => setIsModelModalOpen(false)} style={styles.cancelBtn}>ปิด</button>
               <button onClick={handleAdminSaveModel} style={styles.saveBtn}>บันทึก</button>
             </div>
@@ -278,9 +344,9 @@ const AddVehicle = () => {
       {isNotifyModalOpen && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalContent}>
-            <h3 style={{ marginTop: 0, color: '#c0392b', marginBottom: '15px' }}>แจ้งเพิ่มข้อมูลรถ</h3>
-            <textarea value={notifyText} onChange={(e) => setNotifyText(e.target.value)} placeholder="เช่น ขอเพิ่มยี่ห้อ BYD รุ่น Dolphin" style={{...styles.modalInput, height: '80px'}} autoFocus />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+            <h3 style={{ marginTop: 0, color: '#c0392b' }}>แจ้งเพิ่มข้อมูลรถ</h3>
+            <textarea value={notifyText} onChange={(e) => setNotifyText(e.target.value)} placeholder="ระบุยี่ห้อและรุ่นที่ต้องการ" style={{...styles.modalInput, height: '80px'}} autoFocus />
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
               <button type="button" onClick={() => setIsNotifyModalOpen(false)} style={styles.cancelBtn}>ยกเลิก</button>
               <button onClick={handleSendNotification} style={{...styles.saveBtn, backgroundColor: '#c0392b'}}>ส่งคำขอ</button>
             </div>
@@ -296,6 +362,9 @@ const styles = {
   adminPanel: { backgroundColor: '#fef5e7', padding: '15px', borderRadius: '8px', marginBottom: '25px', border: '1px dashed #f39c12', position: 'relative' },
   adminBtn: { padding: '8px 12px', backgroundColor: '#e67e22', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' },
   
+  manageBtn: { padding: '8px 15px', backgroundColor: '#ecf0f1', border: '1px solid #bdc3c7', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold', color: '#2c3e50', fontSize: '13px' },
+  iconBtnText: { background: 'none', border: 'none', color: '#3498db', cursor: 'pointer', fontSize: '13px', marginLeft: '10px' },
+
   bellBtn: { padding: '8px 15px', backgroundColor: '#fff', border: '1px solid #ddd', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold', color: '#333', position: 'relative', display: 'flex', alignItems: 'center', gap: '5px' },
   badge: { backgroundColor: '#e74c3c', color: 'white', borderRadius: '50%', padding: '2px 6px', fontSize: '11px', position: 'absolute', top: '-5px', right: '-5px' },
   notificationDropdown: { position: 'absolute', top: '40px', right: '0', backgroundColor: 'white', width: '280px', borderRadius: '8px', boxShadow: '0 5px 15px rgba(0,0,0,0.2)', padding: '15px', zIndex: 100, maxHeight: '300px', overflowY: 'auto' },
