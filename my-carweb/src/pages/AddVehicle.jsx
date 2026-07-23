@@ -30,7 +30,7 @@ const AddVehicle = () => {
   const [isBellOpen, setIsBellOpen] = useState(false);
 
   const [formData, setFormData] = useState({
-    Brand: '', Model: '', vehicle_registration: '', Vehicle_Type: 'รถยนต์ส่วนบุคคล'
+    Brand: '', Model: '', vehicle_registration: '', Vehicle_Type: 'รถเก๋ง'
   });
 
   useEffect(() => {
@@ -258,9 +258,11 @@ const AddVehicle = () => {
         <div style={styles.formGroup}>
           <label style={styles.label}>ประเภทรถ</label>
           <select name="Vehicle_Type" value={formData.Vehicle_Type} onChange={handleChange} style={styles.select}>
-            <option value="รถยนต์ส่วนบุคคล">รถยนต์ส่วนบุคคล</option>
-            <option value="รถจักรยานยนต์">รถจักรยานยนต์</option>
+            <option value="รถเก๋ง">รถเก๋ง</option>
             <option value="รถกระบะ">รถกระบะ</option>
+            <option value="รถครอบครัว">รถครอบครัว</option>
+            <option value="รถบรรทุกขนาดเล็ก">รถบรรทุกขนาดเล็ก</option>
+            <option value="รถจักรยานยนต์">รถจักรยานยนต์</option>
           </select>
         </div>
 

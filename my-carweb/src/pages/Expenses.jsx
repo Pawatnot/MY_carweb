@@ -374,7 +374,7 @@ const Expenses = () => {
       {showExpenseModal && (
         <div style={styles.modalOverlay} onClick={() => setShowExpenseModal(false)}>
           <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ marginTop: 0, borderBottom: '2px solid #3498db', paddingBottom: '10px' }}>บันทึกรายจ่าย (บิลเดียวหลายรายการ)</h3>
+            <h3 style={{ marginTop: 0, borderBottom: '2px solid #3498db', paddingBottom: '10px' }}>บันทึกรายจ่าย</h3>
             <form onSubmit={handleAddExpense} style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
               
               {/* --- ส่วนที่ 1: ข้อมูลหลักของบิล --- */}
