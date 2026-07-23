@@ -387,6 +387,7 @@ app.get('/expenses', (req, res) => {
     const userId = req.query.user_id;
     const isAdmin = req.query.is_admin;
 
+    // ✅ เพิ่ม ve.Vehicle_id และ ve.expenses_type_id เพื่อเอาไปใช้ในหน้า Edit
     let sql = `
         SELECT 
             ve.Expenses_id, 
@@ -394,6 +395,8 @@ app.get('/expenses', (req, res) => {
             ve.Expense_Date, 
             ve.payment_status,
             ve.Detail,
+            ve.Vehicle_id,
+            ve.expenses_type_id,
             v.Brand, 
             v.Model, 
             v.vehicle_registration,
@@ -422,10 +425,7 @@ app.post('/expenses', (req, res) => {
     
     const sql = "INSERT INTO vehicle_expenses (Vehicle_id, Amount_of_money, expenses_type_id, Expense_Date, payment_status, Detail) VALUES (?, ?, ?, ?, ?, ?)";
     db.query(sql, [Vehicle_id, Amount_of_money, expenses_type_id, finalDate, payment_status, Detail], (err, result) => {
-        if (err) {
-            console.error("Error POST expenses:", err);
-            return res.status(500).json({ message: "เกิดข้อผิดพลาดในการบันทึก" });
-        }
+        if (err) return res.status(500).json({ message: "เกิดข้อผิดพลาดในการบันทึก" });
         res.status(201).json({ message: "บันทึกรายจ่ายสำเร็จ!", insertId: result.insertId });
     });
 });
@@ -437,11 +437,30 @@ app.put('/expenses/:id/status', (req, res) => {
 
     const sql = "UPDATE vehicle_expenses SET payment_status = ?, Expense_Date = ? WHERE Expenses_id = ?";
     db.query(sql, [payment_status, finalDate, id], (err, result) => {
-        if (err) {
-            console.error("Error updating status:", err);
-            return res.status(500).json({ message: "เกิดข้อผิดพลาดในการอัปเดต" });
-        }
+        if (err) return res.status(500).json({ message: "เกิดข้อผิดพลาดในการอัปเดต" });
         res.json({ message: "อัปเดตสถานะสำเร็จ!" });
+    });
+});
+
+// ✅ เพิ่ม API สำหรับแก้ไขข้อมูลรายจ่าย
+app.put('/expenses/:id', (req, res) => {
+    const id = req.params.id;
+    const { Vehicle_id, Amount_of_money, expenses_type_id, Detail } = req.body;
+
+    const sql = "UPDATE vehicle_expenses SET Vehicle_id = ?, Amount_of_money = ?, expenses_type_id = ?, Detail = ? WHERE Expenses_id = ?";
+    db.query(sql, [Vehicle_id, Amount_of_money, expenses_type_id, Detail, id], (err, result) => {
+        if (err) return res.status(500).json({ message: "เกิดข้อผิดพลาดในการแก้ไข" });
+        res.json({ message: "แก้ไขข้อมูลสำเร็จ!" });
+    });
+});
+
+// ✅ เพิ่ม API สำหรับลบรายจ่าย
+app.delete('/expenses/:id', (req, res) => {
+    const id = req.params.id;
+    const sql = "DELETE FROM vehicle_expenses WHERE Expenses_id = ?";
+    db.query(sql, [id], (err, result) => {
+        if (err) return res.status(500).json({ message: "เกิดข้อผิดพลาดในการลบ" });
+        res.json({ message: "ลบรายจ่ายสำเร็จ!" });
     });
 });
 
@@ -494,6 +513,28 @@ app.put('/schedules/:id/status', (req, res) => {
     }
     res.json({ message: 'อัปเดตสถานะเรียบร้อยแล้ว', result });
   });
+});
+
+// ✅ เพิ่ม API สำหรับแก้ไขกำหนดการ
+app.put('/schedules/:id', (req, res) => {
+    const id = req.params.id;
+    const { Vehicle_id, Item_Name, Expiry_Date } = req.body;
+    
+    const sql = "UPDATE vehicle_schedules SET Vehicle_id = ?, Item_Name = ?, Expiry_Date = ? WHERE Schedule_id = ?";
+    db.query(sql, [Vehicle_id, Item_Name, Expiry_Date, id], (err, result) => {
+        if (err) return res.status(500).json({ message: "เกิดข้อผิดพลาดในการแก้ไข" });
+        res.json({ message: "แก้ไขข้อมูลสำเร็จ!" });
+    });
+});
+
+// ✅ เพิ่ม API สำหรับลบกำหนดการ
+app.delete('/schedules/:id', (req, res) => {
+    const id = req.params.id;
+    const sql = "DELETE FROM vehicle_schedules WHERE Schedule_id = ?";
+    db.query(sql, [id], (err, result) => {
+        if (err) return res.status(500).json({ message: "เกิดข้อผิดพลาดในการลบ" });
+        res.json({ message: "ลบกำหนดการสำเร็จ!" });
+    });
 });
 
 // ==========================================

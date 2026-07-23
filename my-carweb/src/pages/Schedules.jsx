@@ -16,10 +16,22 @@ const Schedules = () => {
   const [activeTab, setActiveTab] = useState('pending'); // pending = รอดำเนินการ, completed = ดำเนินการแล้ว
   const [showAddModal, setShowAddModal] = useState(false);
   const [showActionModal, setShowActionModal] = useState(false);
+  
+  // ✅ State สำหรับหน้าต่าง "แก้ไข" กำหนดการ
+  const [showEditModal, setShowEditModal] = useState(false);
+  
   const [selectedSchedule, setSelectedSchedule] = useState(null);
 
   // Form สำหรับเพิ่มกำหนดการใหม่แบบ Manual
   const [scheduleForm, setScheduleForm] = useState({
+    Vehicle_id: '',
+    Item_Name: '',
+    Expiry_Date: ''
+  });
+
+  // ✅ Form สำหรับแก้ไขกำหนดการ
+  const [editForm, setEditForm] = useState({
+    Schedule_id: '',
     Vehicle_id: '',
     Item_Name: '',
     Expiry_Date: ''
@@ -32,10 +44,9 @@ const Schedules = () => {
     Amount_of_money: '',
     Expense_Date: '',
     Detail: '',
-    payment_status: 1 // ตั้งเป็นจ่ายแล้วอัตโนมัติ
+    payment_status: 1 
   });
   
-  // State สำหรับเก็บค่ารถที่ต้องการกรอง (ค่าว่าง '' หมายถึงแสดงทั้งหมด)
   const [selectedVehicleFilter, setSelectedVehicleFilter] = useState('');
 
   useEffect(() => {
@@ -99,35 +110,73 @@ const Schedules = () => {
     }
   };
 
+  // ✅ ฟังก์ชันเปิดหน้าต่างแก้ไขข้อมูล
+  const handleOpenEdit = (sch) => {
+    // ปรับฟอร์แมตวันที่ให้เข้ากับ input type="date" (YYYY-MM-DD)
+    const dateObj = new Date(sch.Expiry_Date);
+    const yyyy = dateObj.getFullYear();
+    const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const dd = String(dateObj.getDate()).padStart(2, '0');
+    const formattedDate = `${yyyy}-${mm}-${dd}`;
+
+    setEditForm({
+      Schedule_id: sch.Schedule_id,
+      Vehicle_id: sch.Vehicle_id ? sch.Vehicle_id.toString() : '',
+      Item_Name: sch.Item_Name || '',
+      Expiry_Date: formattedDate
+    });
+    setShowEditModal(true);
+  };
+
+  // ✅ ฟังก์ชันบันทึกการแก้ไข
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.put(`http://localhost:5000/schedules/${editForm.Schedule_id}`, editForm);
+      alert("แก้ไขข้อมูลกำหนดการสำเร็จ!");
+      setShowEditModal(false);
+      fetchSchedules(userId, isAdmin ? '1' : '0');
+    } catch (error) {
+      console.error("Error editing schedule:", error);
+      alert("เกิดข้อผิดพลาดในการแก้ไขข้อมูล");
+    }
+  };
+
+  // ✅ ฟังก์ชันลบข้อมูลกำหนดการ
+  const handleDelete = async (id) => {
+    if (window.confirm("คุณแน่ใจหรือไม่ว่าต้องการลบรายการนี้? (ข้อมูลจะถูกลบถาวร)")) {
+      try {
+        await axios.delete(`http://localhost:5000/schedules/${id}`);
+        fetchSchedules(userId, isAdmin ? '1' : '0');
+      } catch (error) {
+        console.error("Error deleting schedule:", error);
+        alert("เกิดข้อผิดพลาดในการลบข้อมูล");
+      }
+    }
+  };
+
   // เมื่อผู้ใช้กดปุ่ม "ดำเนินการแล้ว" -> เปิด Modal บันทึกรายจ่ายพร้อมกรอกข้อมูลรอไว้
   const handleOpenActionModal = (sch) => {
     setSelectedSchedule(sch);
-    
-    // ค้นหาหมวดหมู่รายจ่ายที่ตรงกับชื่อรายการโดยอัตโนมัติ
     const matchedCat = categories.find(c => c.expenses_type === sch.Item_Name);
     
     setActionExpenseForm({
       Vehicle_id: sch.Vehicle_id,
       expenses_type_id: matchedCat ? matchedCat.expenses_type_id : '',
       Amount_of_money: '',
-      Expense_Date: new Date().toISOString().split('T')[0], // ตั้งเป็นวันปัจจุบันเริ่มต้น
+      Expense_Date: new Date().toISOString().split('T')[0], 
       Detail: `ดำเนินการจากระบบกำหนดการ: ${sch.Item_Name}`,
       payment_status: 1
     });
     setShowActionModal(true);
   };
 
-  // กดยืนยันบันทึกรายจ่ายและเปลี่ยนสถานะกำหนดการ (2 เด้งพร้อมกัน)
+  // กดยืนยันบันทึกรายจ่ายและเปลี่ยนสถานะกำหนดการ
   const handleConfirmAction = async (e) => {
     e.preventDefault();
     try {
-      // เด้งที่ 1: ยิง API บันทึกข้อมูลเข้าตารางรายจ่าย (Expenses)
       await axios.post('http://localhost:5000/expenses', actionExpenseForm);
-
-      // เด้งที่ 2: ยิง API อัปเดตตารางกำหนดการเปลี่ยน is_completed เป็น 1
-      await axios.put(`http://localhost:5000/schedules/${selectedSchedule.Schedule_id}/status`, {
-        is_completed: 1
-      });
+      await axios.put(`http://localhost:5000/schedules/${selectedSchedule.Schedule_id}/status`, { is_completed: 1 });
 
       alert("บันทึกประวัติรายจ่ายและอัปเดตกำหนดการสำเร็จ");
       setShowActionModal(false);
@@ -138,19 +187,13 @@ const Schedules = () => {
     }
   };
 
-// ตัวกรองแบ่งตามแท็บ, กรองตามรถ และคำนวณวันคงเหลือ
+  // ตัวกรองแบ่งตามแท็บ, กรองตามรถ และคำนวณวันคงเหลือ
   const filteredSchedules = schedulesList.filter(item => {
-    // 1. กรองตามยานพาหนะ (ถ้าเลือก Dropdown ไว้ และ ID ไม่ตรงกัน ให้ตัดทิ้ง)
-    if (selectedVehicleFilter !== '' && item.Vehicle_id.toString() !== selectedVehicleFilter) {
-      return false;
-    }
-
-    // 2. กรองตามแท็บสถานะ (โค้ดเดิม)
+    if (selectedVehicleFilter !== '' && item.Vehicle_id.toString() !== selectedVehicleFilter) return false;
     if (activeTab === 'pending') return item.is_completed === 0 || item.is_completed === null;
     if (activeTab === 'completed') return item.is_completed === 1;
     return true;
   }).map(item => {
-    // ... (ส่วนคำนวณวันคงเหลือปล่อยไว้เหมือนเดิมได้เลยครับ)
     const today = new Date();
     today.setHours(0,0,0,0);
     const expDate = new Date(item.Expiry_Date);
@@ -159,7 +202,6 @@ const Schedules = () => {
     return { ...item, daysLeft };
   });
 
-  // เรียงลำดับความเร่งด่วนสำหรับรายการที่ยังไม่ทำ
   if (activeTab === 'pending') {
     filteredSchedules.sort((a, b) => a.daysLeft - b.daysLeft);
   }
@@ -174,10 +216,7 @@ const Schedules = () => {
     <div style={styles.container}>
       <div style={styles.topSection}>
         <h2 style={{ color: '#2C3E50', margin: 0 }}>ระบบกำหนดการ & แจ้งเตือน</h2>
-        
-        {/* จัดกลุ่ม Dropdown ตัวกรอง และปุ่มเพิ่ม ให้อยู่ฝั่งขวา */}
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-          
           <select 
             style={styles.filterSelect}
             value={selectedVehicleFilter}
@@ -190,12 +229,10 @@ const Schedules = () => {
               </option>
             ))}
           </select>
-
           <button onClick={() => setShowAddModal(true)} style={styles.addBtn}>เพิ่มกำหนดการใหม่</button>
         </div>
       </div>
 
-      {/* แถบสลับแท็บรอดำเนินการ / ดำเนินการแล้ว */}
       <div style={styles.tabContainer}>
         <button onClick={() => setActiveTab('pending')} style={activeTab === 'pending' ? styles.activeTabPending : styles.inactiveTab}>
           รายการที่ต้องทำ ({schedulesList.filter(s => s.is_completed === 0 || s.is_completed === null).length})
@@ -205,7 +242,6 @@ const Schedules = () => {
         </button>
       </div>
 
-      {/* ส่วนแสดงรายการการแจ้งเตือน */}
       {filteredSchedules.length === 0 ? (
         <div style={styles.emptyContainer}>ไม่มีรายการในหมวดหมู่นี้</div>
       ) : (
@@ -237,11 +273,31 @@ const Schedules = () => {
                     <p style={{ margin: '0 0 10px 0', color: '#4A4036', fontWeight: 'bold' }}>รายการ: {sch.Item_Name}</p>
                   </div>
                   
-                  {activeTab === 'pending' && (
-                    <span style={{ ...styles.statusBadge, color: 'white', backgroundColor: statusColor }}>
-                      {isOverdue ? `เลยกำหนด ${Math.abs(sch.daysLeft)} วัน` : `เหลืออีก ${sch.daysLeft} วัน`}
-                    </span>
-                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '10px' }}>
+                    {activeTab === 'pending' && (
+                      <span style={{ ...styles.statusBadge, color: 'white', backgroundColor: statusColor }}>
+                        {isOverdue ? `เลยกำหนด ${Math.abs(sch.daysLeft)} วัน` : `เหลืออีก ${sch.daysLeft} วัน`}
+                      </span>
+                    )}
+                    
+                    {/* ✅ ส่วนของปุ่มแก้ไข (ซ่อนในประวัติ) และ ปุ่มลบ (มีเสมอ) */}
+                    <div style={{ display: 'flex', gap: '5px' }}>
+                      {activeTab === 'pending' && (
+                        <button onClick={() => handleOpenEdit(sch)} style={{...styles.iconBtn, color: '#f39c12'}} title="แก้ไข">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                      )}
+                      
+                      <button onClick={() => handleDelete(sch.Schedule_id)} style={{...styles.iconBtn, color: '#e74c3c'}} title="ลบ">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+
+                  </div>
                 </div>
 
                 <p style={{ margin: '5px 0', fontSize: '14px', color: '#64748B' }}>
@@ -289,6 +345,39 @@ const Schedules = () => {
               <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                 <button type="submit" style={{ ...styles.submitBtn, backgroundColor: '#2C3E50' }}>บันทึก</button>
                 <button type="button" onClick={() => setShowAddModal(false)} style={styles.cancelBtn}>ยกเลิก</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ Modal 1.5: สำหรับแก้ไขกำหนดการ */}
+      {showEditModal && (
+        <div style={styles.modalOverlay} onClick={() => setShowEditModal(false)}>
+          <div style={styles.modalContent} onClick={e => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0, borderBottom: '2px solid #f39c12', paddingBottom: '10px', color: '#2C3E50' }}>แก้ไขกำหนดการ</h3>
+            <form onSubmit={handleSaveEdit} style={styles.form}>
+              <div>
+                <label style={styles.label}>1. เลือกยานพาหนะ</label>
+                <select required style={styles.input} value={editForm.Vehicle_id} onChange={e => setEditForm({...editForm, Vehicle_id: e.target.value})}>
+                  <option value="">-- กรุณาเลือกรถ --</option>
+                  {vehicles.map(v => <option key={v.Vehicle_id} value={v.Vehicle_id.toString()}>{v.Brand} {v.Model} ({v.vehicle_registration})</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={styles.label}>2. ประเภทรายการ</label>
+                <select required style={styles.input} value={editForm.Item_Name} onChange={e => setEditForm({...editForm, Item_Name: e.target.value})}>
+                  <option value="">-- กรุณาเลือกประเภท --</option>
+                  {categories.map(c => <option key={c.expenses_type_id} value={c.expenses_type}>{c.expenses_type}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={styles.label}>3. วันที่ครบกำหนด</label>
+                <input type="date" required style={styles.input} value={editForm.Expiry_Date} onChange={e => setEditForm({...editForm, Expiry_Date: e.target.value})} />
+              </div>
+              <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                <button type="submit" style={{ ...styles.submitBtn, backgroundColor: '#f39c12' }}>บันทึกการแก้ไข</button>
+                <button type="button" onClick={() => setShowEditModal(false)} style={styles.cancelBtn}>ยกเลิก</button>
               </div>
             </form>
           </div>
@@ -357,13 +446,16 @@ const styles = {
   actionBtn: { width: '100%', backgroundColor: '#16A34A', color: 'white', border: 'none', padding: '10px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', transition: '0.2s' },
   emptyContainer: { backgroundColor: 'white', padding: '40px', textAlign: 'center', borderRadius: '12px', color: '#94A3B8', border: '1px dashed #CBD5E1' },
   
+  // ✅ เพิ่มสไตล์ปุ่มไอคอน
+  iconBtn: { background: 'none', border: 'none', cursor: 'pointer', padding: '5px', borderRadius: '5px', display: 'flex', alignItems: 'center' },
+
   modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
   modalContent: { backgroundColor: 'white', padding: '30px', borderRadius: '12px', width: '90%', maxWidth: '460px', boxShadow: '0 5px 15px rgba(0,0,0,0.2)', maxHeight: '90vh', overflowY: 'auto' },
   form: { display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' },
   label: { fontWeight: 'bold', color: '#34495e', fontSize: '14px', marginBottom: '5px', display: 'block' },
   input: { width: '100%', padding: '11px', borderRadius: '8px', border: '1px solid #bdc3c7', fontSize: '16px', boxSizing: 'border-box' },
   submitBtn: { flex: 1, padding: '12px', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' },
-  cancelBtn: { flex: 1, padding: '12px', backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' }, // <-- เติมลูกน้ำตรงนี้ครับ
+  cancelBtn: { flex: 1, padding: '12px', backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' },
   filterSelect: {
     padding: '10px 15px',
     borderRadius: '8px',
@@ -377,6 +469,5 @@ const styles = {
     minWidth: '200px'
   }
 };
-
 
 export default Schedules;
