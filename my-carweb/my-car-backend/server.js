@@ -4,7 +4,7 @@ const cors = require('cors');
 const multer = require('multer'); 
 const path = require('path');     
 const fs = require('fs'); // 💡 ย้าย fs มารวมไว้ด้านบนให้เป็นระเบียบ
-
+const expenseTypesFilePath = './expenseTypes.json';
 const app = express();
 
 app.use(cors()); 
@@ -381,26 +381,6 @@ app.get('/vehicle-models', (req, res) => {
 });
 
 // ==========================================
-// API หมวด: ประเภทรายจ่าย (Expense Categories)
-// ==========================================
-app.get('/expense-categories', (req, res) => {
-    const sql = "SELECT expenses_type_id, is_document, expenses_type FROM expenses_type";
-    db.query(sql, (err, results) => {
-        if (err) return res.status(500).json(err);
-        res.json(results);
-    });
-});
-
-app.post('/expense-categories', (req, res) => {
-    const { is_document, expenses_type } = req.body;
-    const sql = "INSERT INTO expenses_type (is_document, expenses_type, recording_date) VALUES (?, ?, CURDATE())";
-    db.query(sql, [is_document, expenses_type], (err, result) => {
-        if (err) return res.status(500).json({ message: "เกิดข้อผิดพลาด" });
-        res.status(201).json({ message: "เพิ่มประเภทรายจ่ายสำเร็จ!" });
-    });
-});
-
-// ==========================================
 // API หมวด: บันทึกรายจ่าย (Vehicle Expenses)
 // ==========================================
 app.get('/expenses', (req, res) => {
@@ -581,6 +561,34 @@ app.delete('/notifications/:id', (req, res) => {
     } catch (err) {
         res.status(500).json({ message: "เกิดข้อผิดพลาดในการลบแจ้งเตือน" });
     }
+});
+
+// ดึงข้อมูลหมวดหมู่ทั้งหมด
+app.get('/expense-categories', (req, res) => {
+    db.query("SELECT * FROM expenses_type", (err, results) => {
+        if (err) return res.status(500).json(err);
+        res.json(results);
+    });
+});
+
+// เพิ่มหมวดหมู่ใหม่
+app.post('/expense-categories', (req, res) => {
+    const { is_document, expenses_type } = req.body;
+    db.query("INSERT INTO expenses_type (is_document, expenses_type, is_active) VALUES (?, ?, 1)", 
+    [is_document, expenses_type], (err, results) => {
+        if (err) return res.status(500).json(err);
+        res.json({ insertId: results.insertId });
+    });
+});
+
+// เปิด/ปิด สถานะหมวดหมู่
+app.put('/expense-categories/:id/toggle', (req, res) => {
+    const { is_active } = req.body;
+    db.query("UPDATE expenses_type SET is_active = ? WHERE expenses_type_id = ?", 
+    [is_active, req.params.id], (err, results) => {
+        if (err) return res.status(500).json(err);
+        res.json({ message: "อัปเดตสถานะสำเร็จ" });
+    });
 });
 
 // ============================================
