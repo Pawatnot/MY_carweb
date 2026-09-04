@@ -1,15 +1,4 @@
 {
-  "Toyota": [
-    "Vios",
-    "Yaris",
-    "Hilux Revo"
-  ],
-  "Honda": [
-    "Civic",
-    "City",
-    "HR-V",
-    "Wave"
-  ],
   "Isuzu": [
     "D-Max",
     "MU-X"
@@ -29,5 +18,17 @@
   ],
   "Mercedes-Benz": [
     "C 220 d"
+  ],
+  "Toyota": [
+    "Vios",
+    "Yaris",
+    "Hilux Revo",
+    "fortuner"
+  ],
+  "Honda": [
+    "Civic",
+    "City",
+    "HR-V",
+    "Wave"
   ]
 }

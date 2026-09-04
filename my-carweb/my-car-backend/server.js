@@ -463,6 +463,33 @@ app.delete('/expenses/:id', (req, res) => {
         res.json({ message: "ลบรายจ่ายสำเร็จ!" });
     });
 });
+// เพิ่ม API สำหรับแก้ไขชื่อประเภทรายจ่าย
+app.put('/expense-categories/:id', (req, res) => {
+    const id = req.params.id;
+    const { expenses_type } = req.body;
+    
+    const sql = "UPDATE expenses_type SET expenses_type = ? WHERE expenses_type_id = ?";
+    db.query(sql, [expenses_type, id], (err, result) => {
+        if (err) return res.status(500).json(err);
+        res.json({ message: "อัปเดตชื่อประเภทสำเร็จ" });
+    });
+});
+
+// ✅ API สำหรับลบประเภทรายจ่าย
+app.delete('/expense-categories/:id', (req, res) => {
+    const id = req.params.id;
+    const sql = "DELETE FROM expenses_type WHERE expenses_type_id = ?";
+    db.query(sql, [id], (err, result) => {
+        if (err) {
+            // ถ้าติด Foreign Key (มีข้อมูลรายจ่ายเก่าค้างอยู่)
+            if(err.code === 'ER_ROW_IS_REFERENCED_2') {
+                return res.status(400).json({ message: "ไม่สามารถลบได้ เนื่องจากมีรายการรายจ่ายที่ใช้ประเภทนี้อยู่" });
+            }
+            return res.status(500).json(err);
+        }
+        res.json({ message: "ลบประเภทรายจ่ายสำเร็จ" });
+    });
+});
 
 // ==========================================
 // ระบบกำหนดการ (Vehicle_Schedules)
