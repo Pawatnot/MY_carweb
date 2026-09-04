@@ -16,9 +16,18 @@ const AddVehicle = () => {
   const [isNotifyModalOpen, setIsNotifyModalOpen] = useState(false);
   const [notifyText, setNotifyText] = useState('');
 
+  // ✅ แยก State ทะเบียน กับ จังหวัด ออกจากกันเพื่อให้กรอกง่าย
+  const [regNumber, setRegNumber] = useState('');
+  const [regProvince, setRegProvince] = useState('กรุงเทพมหานคร'); // ตั้งค่าเริ่มต้นเป็นกรุงเทพฯ (เปลี่ยนได้ตามสะดวก)
+
   const [formData, setFormData] = useState({
-    Brand: '', Model: '', vehicle_registration: '', Vehicle_Type: 'รถเก๋ง'
+    Brand: '', Model: '', Vehicle_Type: 'รถเก๋ง'
   });
+
+  // รายชื่อ 77 จังหวัดในประเทศไทย
+  const provinces = [
+    "กรุงเทพมหานคร", "กระบี่", "กาญจนบุรี", "กาฬสินธุ์", "กำแพงเพชร", "ขอนแก่น", "จันทบุรี", "ฉะเชิงเทรา", "ชลบุรี", "ชัยนาท", "ชัยภูมิ", "ชุมพร", "ตรัง", "ตราด", "ตาก", "นครนายก", "นครปฐม", "นครพนม", "นครราชสีมา", "นครศรีธรรมราช", "นครสวรรค์", "นนทบุรี", "นราธิวาส", "น่าน", "บึงกาฬ", "บุรีรัมย์", "ปทุมธานี", "ประจวบคีรีขันธ์", "ปราจีนบุรี", "ปัตตานี", "พระนครศรีอยุธยา", "พะเยา", "พังงา", "พัทลุง", "พิจิตร", "พิษณุโลก", "เพชรบุรี", "เพชรบูรณ์", "แพร่", "ภูเก็ต", "มหาสารคาม", "มุกดาหาร", "แม่ฮ่องสอน", "ยโสธร", "ยะลา", "ร้อยเอ็ด", "ระนอง", "ระยอง", "ราชบุรี", "ลพบุรี", "ลำปาง", "ลำพูน", "เลย", "ศรีสะเกษ", "สกลนคร", "สงขลา", "สตูล", "สมุทรปราการ", "สมุทรสงคราม", "สมุทรสาคร", "สระแก้ว", "สระบุรี", "สิงห์บุรี", "สุโขทัย", "สุพรรณบุรี", "สุราษฎร์ธานี", "สุรินทร์", "หนองคาย", "หนองบัวลำภู", "อ่างทอง", "อำนาจเจริญ", "อุดรธานี", "อุตรดิตถ์", "อุทัยธานี", "อุบลราชธานี"
+  ];
 
   useEffect(() => {
     const storedUserId = localStorage.getItem('user_id');
@@ -80,12 +89,15 @@ const AddVehicle = () => {
     e.preventDefault();
     if (!userId) return alert("ไม่พบข้อมูลผู้ใช้งาน");
     
+    // ✅ นำเลขทะเบียนมารวมกับจังหวัดเป็นสตริงเดียว เช่น "1กก 1234 กรุงเทพมหานคร"
+    const fullRegistration = `${regNumber.trim()} ${regProvince}`;
+
     try {
       const data = new FormData();
       data.append('User_id', userId); 
       data.append('Brand', formData.Brand);
       data.append('Model', formData.Model);
-      data.append('vehicle_registration', formData.vehicle_registration);
+      data.append('vehicle_registration', fullRegistration); // ส่งค่าที่รวมแล้วเข้า Backend
       data.append('Vehicle_Type', formData.Vehicle_Type);
       if (selectedFile) data.append('image', selectedFile); 
 
@@ -117,9 +129,29 @@ const AddVehicle = () => {
           </select>
         </div>
 
+        {/* ✅ ช่องกรอกทะเบียนรถและเลือกจังหวัดแบบรวมในคอลัมน์เดียว */}
         <div style={styles.formGroup}>
-          <label style={styles.label}>ทะเบียนรถ</label>
-          <input type="text" name="vehicle_registration" required onChange={handleChange} style={styles.input} />
+          <label style={styles.label}>ทะเบียนรถและจังหวัด</label>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <input 
+              type="text" 
+              placeholder="เช่น 1กก 1234 หรือ กข-5678" 
+              required 
+              value={regNumber} 
+              onChange={(e) => setRegNumber(e.target.value)} 
+              style={{ ...styles.input, flex: 1.2 }} 
+            />
+            <select 
+              value={regProvince} 
+              onChange={(e) => setRegProvince(e.target.value)} 
+              style={{ ...styles.select, flex: 1 }}
+            >
+              {provinces.map(prov => (
+                <option key={prov} value={prov}>{prov}</option>
+              ))}
+            </select>
+          </div>
+          <span style={{ fontSize: '12px', color: '#7f8c8d' }}>ระบบจะบันทึกรวมกันเป็น: {regNumber ? `${regNumber} ${regProvince}` : '...'}</span>
         </div>
 
         <div style={styles.formGroup}>

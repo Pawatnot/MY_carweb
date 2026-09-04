@@ -16,12 +16,20 @@ const EditVehicle = () => {
   const [isNewBrand, setIsNewBrand] = useState(false);
   const [isNewModel, setIsNewModel] = useState(false);
 
+  // ✅ แยก State ทะเบียน กับ จังหวัด ออกจากกัน
+  const [regNumber, setRegNumber] = useState('');
+  const [regProvince, setRegProvince] = useState('กรุงเทพมหานคร');
+
   const [formData, setFormData] = useState({
     Brand: '',
     Model: '',
-    vehicle_registration: '',
     Vehicle_Type: 'รถเก๋ง'
   });
+
+  // รายชื่อ 77 จังหวัดในประเทศไทย
+  const provinces = [
+    "กรุงเทพมหานคร", "กระบี่", "กาญจนบุรี", "กาฬสินธุ์", "กำแพงเพชร", "ขอนแก่น", "จันทบุรี", "ฉะเชิงเทรา", "ชลบุรี", "ชัยนาท", "ชัยภูมิ", "ชุมพร", "ตรัง", "ตราด", "ตาก", "นครนายก", "นครปฐม", "นครพนม", "นครราชสีมา", "นครศรีธรรมราช", "นครสวรรค์", "นนทบุรี", "นราธิวาส", "น่าน", "บึงกาฬ", "บุรีรัมย์", "ปทุมธานี", "ประจวบคีรีขันธ์", "ปราจีนบุรี", "ปัตตานี", "พระนครศรีอยุธยา", "พะเยา", "พังงา", "พัทลุง", "พิจิตร", "พิษณุโลก", "เพชรบุรี", "เพชรบูรณ์", "แพร่", "ภูเก็ต", "มหาสารคาม", "มุกดาหาร", "แม่ฮ่องสอน", "ยโสธร", "ยะลา", "ร้อยเอ็ด", "ระนอง", "ระยอง", "ราชบุรี", "ลพบุรี", "ลำปาง", "ลำพูน", "เลย", "ศรีสะเกษ", "สกลนคร", "สงขลา", "สตูล", "สมุทรปราการ", "สมุทรสงคราม", "สมุทรสาคร", "สระแก้ว", "สระบุรี", "สิงห์บุรี", "สุโขทัย", "สุพรรณบุรี", "สุราษฎร์ธานี", "สุรินทร์", "หนองคาย", "หนองบัวลำภู", "อ่างทอง", "อำนาจเจริญ", "อุดรธานี", "อุตรดิตถ์", "อุทัยธานี", "อุบลราชธานี"
+  ];
 
   useEffect(() => {
     const adminStatus = localStorage.getItem('is_admin');
@@ -38,9 +46,24 @@ const EditVehicle = () => {
       setFormData({
         Brand: vehicle.Brand,
         Model: vehicle.Model,
-        vehicle_registration: vehicle.vehicle_registration,
         Vehicle_Type: vehicle.Vehicle_Type
       });
+
+      // ✅ แยกข้อความทะเบียนเดิมออกเป็น "เลขทะเบียน" กับ "จังหวัด" เพื่อให้ลงช่อง Dropdown ได้พอดี
+      if (vehicle.vehicle_registration) {
+        const lastSpaceIndex = vehicle.vehicle_registration.lastIndexOf(' ');
+        if (lastSpaceIndex !== -1) {
+          const possibleProvince = vehicle.vehicle_registration.substring(lastSpaceIndex + 1);
+          if (provinces.includes(possibleProvince)) {
+            setRegNumber(vehicle.vehicle_registration.substring(0, lastSpaceIndex));
+            setRegProvince(possibleProvince);
+          } else {
+            setRegNumber(vehicle.vehicle_registration);
+          }
+        } else {
+          setRegNumber(vehicle.vehicle_registration);
+        }
+      }
       
       if (vehicle.Vehicle_image) {
         setCurrentImage(vehicle.Vehicle_image);
@@ -80,10 +103,13 @@ const EditVehicle = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      // ✅ รวมเลขทะเบียนและจังหวัดเข้าด้วยกันก่อนส่ง
+      const fullRegistration = `${regNumber.trim()} ${regProvince}`;
+
       const data = new FormData();
       data.append('Brand', formData.Brand);
       data.append('Model', formData.Model);
-      data.append('vehicle_registration', formData.vehicle_registration);
+      data.append('vehicle_registration', fullRegistration);
       data.append('Vehicle_Type', formData.Vehicle_Type);
 
       if (selectedFile) {
@@ -177,9 +203,29 @@ const EditVehicle = () => {
           )}
         </div>
 
+        {/* ✅ ช่องกรอกทะเบียนรถและเลือกจังหวัดแบบ Dropdown (เหมือนหน้าเพิ่มรถ) */}
         <div style={styles.formGroup}>
-          <label style={styles.label}>ทะเบียนรถ</label>
-          <input type="text" name="vehicle_registration" value={formData.vehicle_registration} required onChange={handleChange} style={styles.input} />
+          <label style={styles.label}>ทะเบียนรถและจังหวัด</label>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <input 
+              type="text" 
+              placeholder="เช่น 1กก 1234 หรือ กข-5678" 
+              required 
+              value={regNumber} 
+              onChange={(e) => setRegNumber(e.target.value)} 
+              style={{ ...styles.input, flex: 1.2 }} 
+            />
+            <select 
+              value={regProvince} 
+              onChange={(e) => setRegProvince(e.target.value)} 
+              style={{ ...styles.select, flex: 1 }}
+            >
+              {provinces.map(prov => (
+                <option key={prov} value={prov}>{prov}</option>
+              ))}
+            </select>
+          </div>
+          <span style={{ fontSize: '12px', color: '#7f8c8d' }}>ระบบจะบันทึกรวมกันเป็น: {regNumber ? `${regNumber} ${regProvince}` : '...'}</span>
         </div>
 
         <div style={styles.formGroup}>
