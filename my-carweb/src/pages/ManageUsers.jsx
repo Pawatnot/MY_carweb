@@ -126,7 +126,7 @@ const styles = {
   td: { padding: '12px', color: '#2c3e50', fontSize: '14px', verticalAlign: 'middle' },
   approveBtn: { padding: '8px 15px', backgroundColor: '#2ecc71', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' },
   rejectBtn: { padding: '8px 15px', backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' },
-  deleteBtn: { padding: '6px 12px', backgroundColor: '#bdc3c7', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }
+  deleteBtn: { padding: '6px 12px', backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }
 };
 
 export default ManageUsers;

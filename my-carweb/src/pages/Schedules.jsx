@@ -13,13 +13,9 @@ const Schedules = () => {
   const [categories, setCategories] = useState([]);
   
   // State สำหรับจัดการหน้าจอ
-  const [activeTab, setActiveTab] = useState('pending'); // pending = รอดำเนินการ, completed = ดำเนินการแล้ว
   const [showAddModal, setShowAddModal] = useState(false);
   const [showActionModal, setShowActionModal] = useState(false);
-  
-  // ✅ State สำหรับหน้าต่าง "แก้ไข" กำหนดการ
   const [showEditModal, setShowEditModal] = useState(false);
-  
   const [selectedSchedule, setSelectedSchedule] = useState(null);
 
   // Form สำหรับเพิ่มกำหนดการใหม่แบบ Manual
@@ -29,7 +25,7 @@ const Schedules = () => {
     Expiry_Date: ''
   });
 
-  // ✅ Form สำหรับแก้ไขกำหนดการ
+  // Form สำหรับแก้ไขกำหนดการ
   const [editForm, setEditForm] = useState({
     Schedule_id: '',
     Vehicle_id: '',
@@ -37,7 +33,7 @@ const Schedules = () => {
     Expiry_Date: ''
   });
 
-  // Form สำหรับบันทึกรายจ่ายเมื่อดำเนินการเสร็จ (Pro Flow)
+  // Form สำหรับบันทึกรายจ่ายเมื่อดำเนินการเสร็จ
   const [actionExpenseForm, setActionExpenseForm] = useState({
     Vehicle_id: '',
     expenses_type_id: '',
@@ -47,7 +43,14 @@ const Schedules = () => {
     payment_status: 1 
   });
   
+  // State สำหรับเก็บไฟล์ใบเสร็จ และตั้งเตือนรอบใหม่
+  const [actionReceiptFile, setActionReceiptFile] = useState(null);
+  const [isAutoSchedule, setIsAutoSchedule] = useState(false); 
+  const [nextExpiryDate, setNextExpiryDate] = useState('');    
+  
+  // State สำหรับตัวกรองข้อมูล
   const [selectedVehicleFilter, setSelectedVehicleFilter] = useState('');
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('');
 
   useEffect(() => {
     const uId = localStorage.getItem('user_id');
@@ -95,7 +98,6 @@ const Schedules = () => {
     }
   };
 
-  // ดำเนินการเพิ่มกำหนดการใหม่แบบ Manual
   const handleAddSchedule = async (e) => {
     e.preventDefault();
     try {
@@ -110,9 +112,7 @@ const Schedules = () => {
     }
   };
 
-  // ✅ ฟังก์ชันเปิดหน้าต่างแก้ไขข้อมูล
   const handleOpenEdit = (sch) => {
-    // ปรับฟอร์แมตวันที่ให้เข้ากับ input type="date" (YYYY-MM-DD)
     const dateObj = new Date(sch.Expiry_Date);
     const yyyy = dateObj.getFullYear();
     const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
@@ -128,7 +128,6 @@ const Schedules = () => {
     setShowEditModal(true);
   };
 
-  // ✅ ฟังก์ชันบันทึกการแก้ไข
   const handleSaveEdit = async (e) => {
     e.preventDefault();
     try {
@@ -142,7 +141,6 @@ const Schedules = () => {
     }
   };
 
-  // ✅ ฟังก์ชันลบข้อมูลกำหนดการ
   const handleDelete = async (id) => {
     if (window.confirm("คุณแน่ใจหรือไม่ว่าต้องการลบรายการนี้? (ข้อมูลจะถูกลบถาวร)")) {
       try {
@@ -155,7 +153,6 @@ const Schedules = () => {
     }
   };
 
-  // เมื่อผู้ใช้กดปุ่ม "ดำเนินการแล้ว" -> เปิด Modal บันทึกรายจ่ายพร้อมกรอกข้อมูลรอไว้
   const handleOpenActionModal = (sch) => {
     setSelectedSchedule(sch);
     const matchedCat = categories.find(c => c.expenses_type === sch.Item_Name);
@@ -168,17 +165,44 @@ const Schedules = () => {
       Detail: `ดำเนินการจากระบบกำหนดการ: ${sch.Item_Name}`,
       payment_status: 1
     });
+    setActionReceiptFile(null); 
+    setIsAutoSchedule(false); 
+    setNextExpiryDate('');    
     setShowActionModal(true);
   };
 
-  // กดยืนยันบันทึกรายจ่ายและเปลี่ยนสถานะกำหนดการ
   const handleConfirmAction = async (e) => {
     e.preventDefault();
+    if (!actionReceiptFile) return alert("กรุณาแนบภาพใบเสร็จเพื่อเป็นหลักฐาน");
+
     try {
-      await axios.post('http://localhost:5000/expenses', actionExpenseForm);
+      const formData = new FormData();
+      formData.append('Vehicle_id', actionExpenseForm.Vehicle_id);
+      formData.append('expenses_type_id', actionExpenseForm.expenses_type_id);
+      formData.append('Amount_of_money', actionExpenseForm.Amount_of_money);
+      formData.append('Expense_Date', actionExpenseForm.Expense_Date);
+      formData.append('Detail', actionExpenseForm.Detail);
+      formData.append('payment_status', 1); 
+      formData.append('receipt_image', actionReceiptFile);
+
+      // 1. ยิง API บันทึกรายจ่ายพร้อมใบเสร็จ
+      await axios.post('http://localhost:5000/expenses', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      
+      // 2. ยิง API อัปเดตสถานะกำหนดการเป็น "ดำเนินการแล้ว"
       await axios.put(`http://localhost:5000/schedules/${selectedSchedule.Schedule_id}/status`, { is_completed: 1 });
 
-      alert("บันทึกประวัติรายจ่ายและอัปเดตกำหนดการสำเร็จ");
+      // 3. ถ้าผู้ใช้เลือกตั้งเตือนรอบถัดไป ให้สร้างกำหนดการใหม่
+      if (isAutoSchedule && nextExpiryDate) {
+        await axios.post('http://localhost:5000/schedules', {
+          Vehicle_id: actionExpenseForm.Vehicle_id,
+          Item_Name: selectedSchedule.Item_Name, 
+          Expiry_Date: nextExpiryDate
+        });
+      }
+
+      alert("บันทึกประวัติรายจ่ายและอัปเดตกำหนดการสำเร็จ!\n(รายการนี้ถูกย้ายไปแสดงที่หน้ารายจ่ายแล้ว)");
       setShowActionModal(false);
       fetchSchedules(userId, isAdmin ? '1' : '0');
     } catch (error) {
@@ -187,12 +211,11 @@ const Schedules = () => {
     }
   };
 
-  // ตัวกรองแบ่งตามแท็บ, กรองตามรถ และคำนวณวันคงเหลือ
-  const filteredSchedules = schedulesList.filter(item => {
+  // กรองแสดงเฉพาะรายการที่ "ยังไม่เสร็จ" พร้อมตัวกรองรถและประเภท
+  const pendingSchedules = schedulesList.filter(item => {
     if (selectedVehicleFilter !== '' && item.Vehicle_id.toString() !== selectedVehicleFilter) return false;
-    if (activeTab === 'pending') return item.is_completed === 0 || item.is_completed === null;
-    if (activeTab === 'completed') return item.is_completed === 1;
-    return true;
+    if (selectedCategoryFilter !== '' && item.Item_Name !== selectedCategoryFilter) return false; 
+    return item.is_completed === 0 || item.is_completed === null;
   }).map(item => {
     const today = new Date();
     today.setHours(0,0,0,0);
@@ -200,11 +223,7 @@ const Schedules = () => {
     const diffTime = expDate - today;
     const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return { ...item, daysLeft };
-  });
-
-  if (activeTab === 'pending') {
-    filteredSchedules.sort((a, b) => a.daysLeft - b.daysLeft);
-  }
+  }).sort((a, b) => a.daysLeft - b.daysLeft); 
 
   const formatDate = (dateString) => {
     if (!dateString) return '';
@@ -215,8 +234,10 @@ const Schedules = () => {
   return (
     <div style={styles.container}>
       <div style={styles.topSection}>
-        <h2 style={{ color: '#2C3E50', margin: 0 }}>ระบบกำหนดการ & แจ้งเตือน</h2>
-        <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+        <div>
+          <h2 style={{ color: '#2C3E50', margin: 0 }}>ระบบกำหนดการ & แจ้งเตือน</h2>
+        </div>
+        <div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
           <select 
             style={styles.filterSelect}
             value={selectedVehicleFilter}
@@ -229,39 +250,39 @@ const Schedules = () => {
               </option>
             ))}
           </select>
+
+          <select 
+            style={styles.filterSelect}
+            value={selectedCategoryFilter}
+            onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+          >
+            <option value="">-- ประเภทรายการทั้งหมด --</option>
+            {categories.map(c => (
+              <option key={c.expenses_type_id} value={c.expenses_type}>
+                {c.expenses_type}
+              </option>
+            ))}
+          </select>
+
           <button onClick={() => setShowAddModal(true)} style={styles.addBtn}>เพิ่มกำหนดการใหม่</button>
         </div>
       </div>
 
-      <div style={styles.tabContainer}>
-        <button onClick={() => setActiveTab('pending')} style={activeTab === 'pending' ? styles.activeTabPending : styles.inactiveTab}>
-          รายการที่ต้องทำ ({schedulesList.filter(s => s.is_completed === 0 || s.is_completed === null).length})
-        </button>
-        <button onClick={() => setActiveTab('completed')} style={activeTab === 'completed' ? styles.activeTabCompleted : styles.inactiveTab}>
-          ประวัติการดำเนินการแล้ว ({schedulesList.filter(s => s.is_completed === 1).length})
-        </button>
-      </div>
-
-      {filteredSchedules.length === 0 ? (
-        <div style={styles.emptyContainer}>ไม่มีรายการในหมวดหมู่นี้</div>
+      {pendingSchedules.length === 0 ? (
+        <div style={styles.emptyContainer}>เยี่ยมมาก! ไม่มีรายการแจ้งเตือนค้างอยู่เลย</div>
       ) : (
         <div style={styles.grid}>
-          {filteredSchedules.map(sch => {
+          {pendingSchedules.map(sch => {
             const isOverdue = sch.daysLeft < 0;
             let statusColor = '#16A34A';
             let cardBorder = '5px solid #16A34A';
             
-            if (activeTab === 'pending') {
-              if (isOverdue) {
-                statusColor = '#DC2626';
-                cardBorder = '5px solid #DC2626';
-              } else if (sch.daysLeft <= 7) {
-                statusColor = '#D97706';
-                cardBorder = '5px solid #D97706';
-              }
-            } else {
-              statusColor = '#94A3B8';
-              cardBorder = '5px solid #94A3B8';
+            if (isOverdue) {
+              statusColor = '#DC2626';
+              cardBorder = '5px solid #DC2626';
+            } else if (sch.daysLeft <= 7) {
+              statusColor = '#D97706';
+              cardBorder = '5px solid #D97706';
             }
 
             return (
@@ -274,29 +295,22 @@ const Schedules = () => {
                   </div>
                   
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '10px' }}>
-                    {activeTab === 'pending' && (
-                      <span style={{ ...styles.statusBadge, color: 'white', backgroundColor: statusColor }}>
-                        {isOverdue ? `เลยกำหนด ${Math.abs(sch.daysLeft)} วัน` : `เหลืออีก ${sch.daysLeft} วัน`}
-                      </span>
-                    )}
+                    <span style={{ ...styles.statusBadge, color: 'white', backgroundColor: statusColor }}>
+                      {isOverdue ? `เลยกำหนด ${Math.abs(sch.daysLeft)} วัน` : `เหลืออีก ${sch.daysLeft} วัน`}
+                    </span>
                     
-                    {/* ✅ ส่วนของปุ่มแก้ไข (ซ่อนในประวัติ) และ ปุ่มลบ (มีเสมอ) */}
                     <div style={{ display: 'flex', gap: '5px' }}>
-                      {activeTab === 'pending' && (
-                        <button onClick={() => handleOpenEdit(sch)} style={{...styles.iconBtn, color: '#f39c12'}} title="แก้ไข">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                        </button>
-                      )}
-                      
+                      <button onClick={() => handleOpenEdit(sch)} style={{...styles.iconBtn, color: '#f39c12'}} title="แก้ไข">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
                       <button onClick={() => handleDelete(sch.Schedule_id)} style={{...styles.iconBtn, color: '#e74c3c'}} title="ลบ">
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
                       </button>
                     </div>
-
                   </div>
                 </div>
 
@@ -304,21 +318,17 @@ const Schedules = () => {
                   วันที่ครบกำหนด: {formatDate(sch.Expiry_Date)}
                 </p>
 
-                {activeTab === 'pending' && (
-                  <>
-                    <hr style={{ borderTop: '1px dashed #E2E8F0', margin: '15px 0 10px 0' }} />
-                    <button onClick={() => handleOpenActionModal(sch)} style={styles.actionBtn}>
-                      ดำเนินการแล้ว
-                    </button>
-                  </>
-                )}
+                <hr style={{ borderTop: '1px dashed #E2E8F0', margin: '15px 0 10px 0' }} />
+                <button onClick={() => handleOpenActionModal(sch)} style={styles.actionBtn}>
+                  ดำเนินการแล้ว
+                </button>
               </div>
             );
           })}
         </div>
       )}
 
-      {/* Modal 1: เพิ่มกำหนดการใหม่ (Manual) */}
+      {/* Modal 1: เพิ่มกำหนดการใหม่ */}
       {showAddModal && (
         <div style={styles.modalOverlay} onClick={() => setShowAddModal(false)}>
           <div style={styles.modalContent} onClick={e => e.stopPropagation()}>
@@ -351,7 +361,7 @@ const Schedules = () => {
         </div>
       )}
 
-      {/* ✅ Modal 1.5: สำหรับแก้ไขกำหนดการ */}
+      {/* Modal 1.5: แก้ไขกำหนดการ */}
       {showEditModal && (
         <div style={styles.modalOverlay} onClick={() => setShowEditModal(false)}>
           <div style={styles.modalContent} onClick={e => e.stopPropagation()}>
@@ -384,14 +394,14 @@ const Schedules = () => {
         </div>
       )}
 
-      {/* Modal 2: บันทึกรายจ่ายเมื่อกดยืนยันการทำรายการ (Pro Flow Popup) */}
+      {/* Modal 2: บันทึกรายจ่ายเมื่อกดยืนยันการทำรายการ */}
       {showActionModal && (
         <div style={styles.modalOverlay} onClick={() => setShowActionModal(false)}>
           <div style={styles.modalContent} onClick={e => e.stopPropagation()}>
             <h3 style={{ marginTop: 0, borderBottom: '2px solid #16A34A', paddingBottom: '10px', color: '#16A34A' }}>บันทึกค่าใช้จ่ายการดำเนินการ</h3>
             <form onSubmit={handleConfirmAction} style={styles.form}>
               <div style={{ backgroundColor: '#F0FDF4', padding: '12px', borderRadius: '8px', fontSize: '14px', color: '#166534' }}>
-                ระบบจะทำการย้ายรายการนี้ไปยังหน้า <strong>"ประวัติการดำเนินการแล้ว"</strong> และเพิ่มข้อมูลลงในตารางรายจ่ายให้ทันที
+                รายการนี้จะถูกย้ายไปเป็น <strong>"ประวัติรายจ่าย"</strong> โดยอัตโนมัติเมื่อบันทึกสำเร็จ
               </div>
               <div>
                 <label style={styles.label}>ประเภทรายจ่าย</label>
@@ -409,6 +419,12 @@ const Schedules = () => {
                 <label style={styles.label}>จำนวนเงินที่จ่ายไป (บาท)</label>
                 <input type="number" required min="0" placeholder="กรอกจำนวนเงินจริง" style={styles.input} value={actionExpenseForm.Amount_of_money} onChange={e => setActionExpenseForm({...actionExpenseForm, Amount_of_money: e.target.value})} />
               </div>
+              
+              <div>
+                <label style={styles.label}>ภาพใบเสร็จรับเงิน <span style={{color: 'red'}}>*</span></label>
+                <input type="file" required accept="image/*" style={styles.input} onChange={e => setActionReceiptFile(e.target.files[0])} />
+              </div>
+
               <div>
                 <label style={styles.label}>วันที่ทำรายการชำระเงิน</label>
                 <input type="date" required style={styles.input} value={actionExpenseForm.Expense_Date} onChange={e => setActionExpenseForm({...actionExpenseForm, Expense_Date: e.target.value})} />
@@ -417,6 +433,20 @@ const Schedules = () => {
                 <label style={styles.label}>รายละเอียดเพิ่มเติม</label>
                 <input type="text" style={styles.input} value={actionExpenseForm.Detail} onChange={e => setActionExpenseForm({...actionExpenseForm, Detail: e.target.value})} />
               </div>
+
+              <div style={{ padding: '12px', backgroundColor: '#F0FDF4', borderRadius: '8px', border: '1px solid #BBF7D0', marginTop: '5px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={isAutoSchedule} onChange={e => setIsAutoSchedule(e.target.checked)} style={{ transform: 'scale(1.2)' }} />
+                  <span style={{fontWeight: 'bold', color: '#16A34A', fontSize: '14px'}}>ตั้งเตือนรายการนี้ในรอบถัดไป (เช่น ปีหน้า)</span>
+                </label>
+                {isAutoSchedule && (
+                  <div style={{ marginTop: '10px' }}>
+                    <label style={{...styles.label, fontSize: '13px', color: '#166534'}}>วันที่ครบกำหนดรอบใหม่ <span style={{color: 'red'}}>*</span></label>
+                    <input type="date" required style={styles.input} value={nextExpiryDate} onChange={e => setNextExpiryDate(e.target.value)}/>
+                  </div>
+                )}
+              </div>
+
               <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                 <button type="submit" style={{ ...styles.submitBtn, backgroundColor: '#16A34A' }}>บันทึกและปิดงาน</button>
                 <button type="button" onClick={() => setShowActionModal(false)} style={styles.cancelBtn}>ยกเลิก</button>
@@ -431,13 +461,8 @@ const Schedules = () => {
 
 const styles = {
   container: { padding: '30px', backgroundColor: '#F9F8F4', minHeight: '100vh', boxSizing: 'border-box' },
-  topSection: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' },
+  topSection: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' },
   addBtn: { backgroundColor: '#2C3E50', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' },
-  
-  tabContainer: { display: 'flex', gap: '10px', marginBottom: '25px', borderBottom: '1px solid #E2E8F0', paddingBottom: '10px' },
-  activeTabPending: { padding: '10px 20px', backgroundColor: '#2C3E50', color: 'white', border: 'none', borderRadius: '20px', fontWeight: 'bold', cursor: 'pointer' },
-  activeTabCompleted: { padding: '10px 20px', backgroundColor: '#94A3B8', color: 'white', border: 'none', borderRadius: '20px', fontWeight: 'bold', cursor: 'pointer' },
-  inactiveTab: { padding: '10px 20px', backgroundColor: '#FFFFFF', color: '#64748B', border: '1px solid #CBD5E1', borderRadius: '20px', fontWeight: 'bold', cursor: 'pointer' },
   
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' },
   card: { backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 10px rgba(0,0,0,0.03)', border: '1px solid #F0EAE1' },
@@ -445,8 +470,6 @@ const styles = {
   statusBadge: { padding: '4px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold' },
   actionBtn: { width: '100%', backgroundColor: '#16A34A', color: 'white', border: 'none', padding: '10px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', transition: '0.2s' },
   emptyContainer: { backgroundColor: 'white', padding: '40px', textAlign: 'center', borderRadius: '12px', color: '#94A3B8', border: '1px dashed #CBD5E1' },
-  
-  // ✅ เพิ่มสไตล์ปุ่มไอคอน
   iconBtn: { background: 'none', border: 'none', cursor: 'pointer', padding: '5px', borderRadius: '5px', display: 'flex', alignItems: 'center' },
 
   modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
@@ -456,18 +479,7 @@ const styles = {
   input: { width: '100%', padding: '11px', borderRadius: '8px', border: '1px solid #bdc3c7', fontSize: '16px', boxSizing: 'border-box' },
   submitBtn: { flex: 1, padding: '12px', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' },
   cancelBtn: { flex: 1, padding: '12px', backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' },
-  filterSelect: {
-    padding: '10px 15px',
-    borderRadius: '8px',
-    border: '1px solid #CBD5E1',
-    backgroundColor: '#FFFFFF',
-    color: '#475569',
-    fontSize: '14px',
-    fontWeight: 'bold',
-    cursor: 'pointer',
-    outline: 'none',
-    minWidth: '200px'
-  }
+  filterSelect: { padding: '10px 15px', borderRadius: '8px', border: '1px solid #CBD5E1', backgroundColor: '#FFFFFF', color: '#475569', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', outline: 'none', minWidth: '200px' }
 };
 
 export default Schedules;

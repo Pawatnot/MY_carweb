@@ -8,15 +8,12 @@ const Expenses = () => {
   
   const [showCategoryModal, setShowCategoryModal] = useState(false); 
   const [showExpenseModal, setShowExpenseModal] = useState(false);   
-  
   const [showEditModal, setShowEditModal] = useState(false);
+  
   const [editData, setEditData] = useState({
-    Expenses_id: '',
-    Vehicle_id: '',
-    expenses_type_id: '',
-    Amount_of_money: '',
-    Detail: ''
+    Expenses_id: '', Vehicle_id: '', expenses_type_id: '', Amount_of_money: '', Detail: '', current_receipt: ''
   });
+  const [editReceiptFile, setEditReceiptFile] = useState(null);
   
   const [showDateModal, setShowDateModal] = useState(false);
   const [payingExpenseId, setPayingExpenseId] = useState(null);
@@ -31,10 +28,14 @@ const Expenses = () => {
   const [expenseName, setExpenseName] = useState('');        
 
   const [billData, setBillData] = useState({ Vehicle_id: '', payment_status: 0, Expense_Date: '' });
+  const [receiptFile, setReceiptFile] = useState(null); // ✅ State สำหรับเก็บไฟล์ใบเสร็จ
+
   const [expenseItems, setExpenseItems] = useState([
     { expenses_type_id: '', Amount_of_money: '', Detail: '', isAutoSchedule: false, nextExpiryDate: '' }
   ]);
+  
   const [selectedVehicleFilter, setSelectedVehicleFilter] = useState('');
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState(''); 
 
   useEffect(() => {
     const adminStatus = localStorage.getItem('is_admin');
@@ -73,20 +74,14 @@ const Expenses = () => {
   const handleAddCategory = async (e) => {
     e.preventDefault();
     try {
-      const requestMsg = `ขอเพิ่มประเภทรายจ่ายใหม่: "${expenseName}" (หมวดหมู่: ${expenseType})`;
-      await axios.post('http://localhost:5000/notifications', { Message: requestMsg });
-      alert("ส่งคำร้องไปยังแอดมินเรียบร้อยแล้ว แอดมินจะดำเนินการตรวจสอบเร็วๆ นี้");
-      setShowCategoryModal(false);
-      setExpenseName('');
+      await axios.post('http://localhost:5000/notifications', { Message: `ขอเพิ่มประเภทรายจ่ายใหม่: "${expenseName}"` });
+      alert("ส่งคำร้องไปยังแอดมินเรียบร้อยแล้ว");
+      setShowCategoryModal(false); setExpenseName('');
     } catch (error) { alert("เกิดข้อผิดพลาดในการส่งคำร้อง"); }
   };
 
   const handleAddItem = () => setExpenseItems([...expenseItems, { expenses_type_id: '', Amount_of_money: '', Detail: '', isAutoSchedule: false, nextExpiryDate: '' }]);
-  
-  const handleRemoveItem = (index) => {
-    if (expenseItems.length > 1) setExpenseItems(expenseItems.filter((_, i) => i !== index));
-  };
-
+  const handleRemoveItem = (index) => { if (expenseItems.length > 1) setExpenseItems(expenseItems.filter((_, i) => i !== index)); };
   const handleItemChange = (index, field, value) => {
     const newItems = [...expenseItems];
     newItems[index][field] = value;
@@ -95,15 +90,25 @@ const Expenses = () => {
 
   const handleAddExpense = async (e) => {
     e.preventDefault();
+    // ✅ แก้ไข: บังคับแนบใบเสร็จ เฉพาะเมื่อสถานะเป็น "จ่ายแล้ว" (1) เท่านั้น
+    if (billData.payment_status === 1 && !receiptFile) {
+      return alert("กรุณาแนบภาพใบเสร็จเพื่อเป็นหลักฐานการชำระเงิน"); 
+    }
+
     try {
       await Promise.all(expenseItems.map(async (item) => {
-        const expenseRes = await axios.post('http://localhost:5000/expenses', {
-          Vehicle_id: billData.Vehicle_id,
-          payment_status: billData.payment_status,
-          Expense_Date: billData.Expense_Date,
-          expenses_type_id: item.expenses_type_id,
-          Amount_of_money: item.Amount_of_money,
-          Detail: item.Detail
+        // ✅ เปลี่ยนเป็น FormData เพื่อส่งไฟล์รูป
+        const formData = new FormData();
+        formData.append('Vehicle_id', billData.Vehicle_id);
+        formData.append('payment_status', billData.payment_status);
+        formData.append('Expense_Date', billData.Expense_Date);
+        formData.append('expenses_type_id', item.expenses_type_id);
+        formData.append('Amount_of_money', item.Amount_of_money);
+        formData.append('Detail', item.Detail);
+        formData.append('receipt_image', receiptFile);
+
+        const expenseRes = await axios.post('http://localhost:5000/expenses', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
         });
         const newExpenseId = expenseRes.data.insertId;
 
@@ -114,12 +119,13 @@ const Expenses = () => {
         }
       }));
 
-      alert("บันทึกข้อมูลสำเร็จทุกรายการ!");
+      alert("บันทึกข้อมูลสำเร็จ!");
       setShowExpenseModal(false); 
       setBillData({ Vehicle_id: '', payment_status: 0, Expense_Date: '' });
+      setReceiptFile(null);
       setExpenseItems([{ expenses_type_id: '', Amount_of_money: '', Detail: '', isAutoSchedule: false, nextExpiryDate: '' }]);
       fetchExpensesList(userId, isAdmin ? '1' : '0'); 
-    } catch (error) { alert("เกิดข้อผิดพลาดในการบันทึกข้อมูลบางรายการ"); }
+    } catch (error) { alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล"); }
   };
 
   const handleOpenEdit = (exp) => {
@@ -128,31 +134,38 @@ const Expenses = () => {
       Vehicle_id: exp.Vehicle_id ? exp.Vehicle_id.toString() : '',
       expenses_type_id: exp.expenses_type_id ? exp.expenses_type_id.toString() : '',
       Amount_of_money: exp.Amount_of_money || '',
-      Detail: exp.Detail || ''
+      Detail: exp.Detail || '',
+      current_receipt: exp.receipt_image || ''
     });
+    setEditReceiptFile(null);
     setShowEditModal(true);
   };
 
   const handleSaveEdit = async (e) => {
     e.preventDefault();
     try {
-      await axios.put(`http://localhost:5000/expenses/${editData.Expenses_id}`, editData);
+      const formData = new FormData();
+      formData.append('Vehicle_id', editData.Vehicle_id);
+      formData.append('expenses_type_id', editData.expenses_type_id);
+      formData.append('Amount_of_money', editData.Amount_of_money);
+      formData.append('Detail', editData.Detail);
+      if (editReceiptFile) formData.append('receipt_image', editReceiptFile);
+
+      await axios.put(`http://localhost:5000/expenses/${editData.Expenses_id}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
       alert("แก้ไขข้อมูลสำเร็จ!");
       setShowEditModal(false);
       fetchExpensesList(userId, isAdmin ? '1' : '0');
-    } catch (error) {
-      alert("เกิดข้อผิดพลาดในการแก้ไขข้อมูล");
-    }
+    } catch (error) { alert("เกิดข้อผิดพลาดในการแก้ไขข้อมูล"); }
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm("คุณแน่ใจหรือไม่ว่าต้องการลบรายจ่ายนี้? (ข้อมูลจะถูกลบถาวร)")) {
+    if (window.confirm("คุณแน่ใจหรือไม่ว่าต้องการลบรายจ่ายนี้?")) {
       try {
         await axios.delete(`http://localhost:5000/expenses/${id}`);
         fetchExpensesList(userId, isAdmin ? '1' : '0');
-      } catch (error) {
-        alert("เกิดข้อผิดพลาดในการลบข้อมูล");
-      }
+      } catch (error) { alert("เกิดข้อผิดพลาดในการลบ"); }
     }
   };
 
@@ -161,11 +174,9 @@ const Expenses = () => {
       try {
         await axios.put(`http://localhost:5000/expenses/${exp.Expenses_id}/status`, { payment_status: 0, Expense_Date: null });
         fetchExpensesList(userId, isAdmin ? '1' : '0'); 
-      } catch (error) { alert("เกิดข้อผิดพลาดในการอัปเดตสถานะ"); }
+      } catch (error) { alert("เกิดข้อผิดพลาด"); }
     } else {
-      setPayingExpenseId(exp.Expenses_id);
-      setPayingDate('');
-      setShowDateModal(true);
+      setPayingExpenseId(exp.Expenses_id); setPayingDate(''); setShowDateModal(true);
     }
   };
 
@@ -173,13 +184,13 @@ const Expenses = () => {
     e.preventDefault();
     try {
       await axios.put(`http://localhost:5000/expenses/${payingExpenseId}/status`, { payment_status: 1, Expense_Date: payingDate });
-      setShowDateModal(false); 
-      fetchExpensesList(userId, isAdmin ? '1' : '0'); 
-    } catch (error) { alert("เกิดข้อผิดพลาดในการอัปเดตสถานะ"); }
+      setShowDateModal(false); fetchExpensesList(userId, isAdmin ? '1' : '0'); 
+    } catch (error) { alert("เกิดข้อผิดพลาด"); }
   };
 
   const filteredExpenses = expensesList.filter(expense => {
     if (selectedVehicleFilter !== '' && expense.vehicle_registration !== selectedVehicleFilter) return false;
+    if (selectedCategoryFilter !== '' && expense.expenses_type_id?.toString() !== selectedCategoryFilter) return false;
     if (activeTab === 'paid') return expense.payment_status === 1;
     if (activeTab === 'unpaid') return expense.payment_status === 0;
     return true; 
@@ -202,9 +213,7 @@ const Expenses = () => {
     const d = new Date(currentYear, currentMonth - i, 1);
     const m = d.getMonth();
     const y = d.getFullYear();
-    const key = `${y}-${m}`;
-    const label = `${monthNames[m]} ${(y + 543).toString().slice(-2)}`;
-    chartDataMap[key] = { name: label, total: 0 };
+    chartDataMap[`${y}-${m}`] = { name: `${monthNames[m]} ${(y + 543).toString().slice(-2)}`, total: 0 };
   }
 
   expensesList.forEach(exp => {
@@ -218,16 +227,9 @@ const Expenses = () => {
 
   return (
     <div style={{ padding: '30px', backgroundColor: '#F9F8F4', minHeight: '100vh', boxSizing: 'border-box' }}>
-      
       <div style={styles.topSection}>
         <h2 style={{ color: '#2C3E50', margin: 0 }}>ระบบบันทึกรายจ่าย</h2>
-        <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-          <select style={styles.filterSelect} value={selectedVehicleFilter} onChange={(e) => setSelectedVehicleFilter(e.target.value)}>
-            <option value="">-- ยานพาหนะทั้งหมด --</option>
-            {myVehicles.map(v => <option key={v.Vehicle_id} value={v.vehicle_registration}>{v.vehicle_registration} ({v.Brand})</option>)}
-          </select>
-          <button onClick={() => setShowExpenseModal(true)} style={styles.addExpenseBtn}>เพิ่มรายจ่ายใหม่</button>
-        </div>
+        <button onClick={() => setShowExpenseModal(true)} style={styles.addExpenseBtn}>เพิ่มรายจ่ายใหม่</button>
       </div>
 
       <div style={{ backgroundColor: '#FFFFFF', padding: '20px', borderRadius: '16px', boxShadow: '0 4px 10px rgba(0,0,0,0.03)', border: '1px solid #F0EAE1', marginBottom: '30px' }}>
@@ -247,7 +249,7 @@ const Expenses = () => {
 
       <hr style={{ borderTop: '2px dashed #E2E8F0', margin: '30px 0' }}/>
       
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '15px' }}>
         <h2 style={{ color: '#2C3E50', margin: 0 }}>รายการใช้จ่ายทั้งหมด</h2>
         <div style={styles.tabContainer}>
           <button onClick={() => setActiveTab('all')} style={activeTab === 'all' ? styles.activeTabAll : styles.inactiveTab}>ทั้งหมด</button>
@@ -256,29 +258,39 @@ const Expenses = () => {
         </div>
       </div>
 
+      <div style={{ display: 'flex', gap: '15px', marginBottom: '25px', flexWrap: 'wrap' }}>
+        <select style={styles.filterSelect} value={selectedVehicleFilter} onChange={(e) => setSelectedVehicleFilter(e.target.value)}>
+          <option value="">-- ยานพาหนะทั้งหมด --</option>
+          {myVehicles.map(v => <option key={v.Vehicle_id} value={v.vehicle_registration}>{v.vehicle_registration} ({v.Brand})</option>)}
+        </select>
+        <select style={styles.filterSelect} value={selectedCategoryFilter} onChange={(e) => setSelectedCategoryFilter(e.target.value)}>
+          <option value="">-- ประเภทรายจ่ายทั้งหมด --</option>
+          {categories.map(cat => <option key={cat.expenses_type_id} value={cat.expenses_type_id.toString()}>{cat.expenses_type}</option>)}
+        </select>
+      </div>
+
       {filteredExpenses.length === 0 ? (
         <div style={{ textAlign: 'center', marginTop: '50px', color: '#7f8c8d' }}><p>ไม่มีรายการที่ค้นหาในหมวดหมู่นี้...</p></div>
       ) : (
         <div style={styles.grid}>
           {filteredExpenses.map(exp => (
             <div key={exp.Expenses_id} style={{ ...styles.card, borderLeft: exp.payment_status === 1 ? '5px solid #16A34A' : '5px solid #DC2626' }}>
-              
              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <span style={styles.categoryTag}>{exp.expenses_type}</span>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <span style={{ fontWeight: 'bold', fontSize: '18px', color: '#2C3E50', marginRight: '5px' }}>฿{exp.Amount_of_money}</span>
-                  
-                  <button onClick={() => handleOpenEdit(exp)} style={{...styles.editIconBtn, color: '#f39c12'}} title="แก้ไข">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                  </button>
+                <span style={{ fontWeight: 'bold', fontSize: '18px', color: '#2C3E50', marginRight: '5px' }}>฿{exp.Amount_of_money}</span>
+  
+                <button onClick={() => handleOpenEdit(exp)} style={{...styles.editIconBtn, color: '#f39c12'}} title="แก้ไข">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                </button>
 
-                  <button onClick={() => handleDelete(exp.Expenses_id)} style={{...styles.deleteIconBtn, color: '#e74c3c'}} title="ลบ">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
+                <button onClick={() => handleDelete(exp.Expenses_id)} style={{...styles.deleteIconBtn, color: '#e74c3c'}} title="ลบ">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
                 </div>
               </div>
 
@@ -288,6 +300,13 @@ const Expenses = () => {
               <p style={{ margin: '10px 0', color: '#34495e', fontSize: '14px', backgroundColor: '#F8FAFC', padding: '8px', borderRadius: '5px' }}>
                 หมายเหตุ: {exp.Detail || '-'}
               </p>
+
+              {/* ✅ เพิ่มปุ่มดูใบเสร็จใน Card */}
+              {exp.receipt_image && (
+                <a href={`http://localhost:5000/uploads/${exp.receipt_image}`} target="_blank" rel="noreferrer" style={styles.receiptLink}>
+                  📄 ดูใบเสร็จรับเงิน
+                </a>
+              )}
 
               {exp.payment_status === 1 ? (
                 <p style={{ margin: '5px 0 15px 0', color: '#16A34A', fontSize: '14px', fontWeight: 'bold' }}>วันที่ชำระเงิน: {formatDate(exp.Expense_Date)}</p>
@@ -305,12 +324,12 @@ const Expenses = () => {
         </div>
       )}
 
+      {/* Modal แก้ไขข้อมูล */}
       {showEditModal && (
         <div style={styles.modalOverlay} onClick={() => setShowEditModal(false)}>
           <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
             <h3 style={{ marginTop: 0, borderBottom: '2px solid #f39c12', paddingBottom: '10px', color: '#2c3e50' }}>แก้ไขข้อมูลรายจ่าย</h3>
             <form onSubmit={handleSaveEdit} style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
-              
               <div>
                 <label style={styles.label}>ยานพาหนะ</label>
                 <select required style={styles.input} value={editData.Vehicle_id} onChange={e => setEditData({...editData, Vehicle_id: e.target.value})}>
@@ -340,6 +359,17 @@ const Expenses = () => {
                 <input type="text" style={styles.input} value={editData.Detail} onChange={e => setEditData({...editData, Detail: e.target.value})}/>
               </div>
 
+              {/* ✅ ช่องอัปเดตใบเสร็จ */}
+              <div>
+                <label style={styles.label}>รูปใบเสร็จ (เลือกใหม่เพื่อเปลี่ยน)</label>
+                {editData.current_receipt && !editReceiptFile && (
+                  <div style={{ marginBottom: '10px' }}>
+                    <img src={`http://localhost:5000/uploads/${editData.current_receipt}`} alt="Receipt" style={{ width: '100px', borderRadius: '5px', border: '1px solid #ccc' }} />
+                  </div>
+                )}
+                <input type="file" accept="image/*" style={styles.input} onChange={e => setEditReceiptFile(e.target.files[0])} />
+              </div>
+
               <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                 <button type="submit" style={{...styles.submitBtn, backgroundColor: '#f39c12'}}>บันทึกการแก้ไข</button>
                 <button type="button" onClick={() => setShowEditModal(false)} style={styles.cancelBtn}>ยกเลิก</button>
@@ -349,6 +379,7 @@ const Expenses = () => {
         </div>
       )}
 
+      {/* Modal ยืนยันชำระเงิน */}
       {showDateModal && (
         <div style={styles.modalOverlay} onClick={() => setShowDateModal(false)}>
           <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
@@ -364,6 +395,7 @@ const Expenses = () => {
         </div>
       )}
 
+      {/* Modal บันทึกรายจ่ายใหม่ */}
       {showExpenseModal && (
         <div style={styles.modalOverlay} onClick={() => setShowExpenseModal(false)}>
           <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
@@ -380,28 +412,36 @@ const Expenses = () => {
                   </select>
                 </div>
                 
+                {/* ✅ เลื่อน Checkbox ชำระเงินขึ้นมาไว้ตรงนี้ */}
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginTop: '10px' }}>
-                  <input type="checkbox" checked={billData.payment_status === 1} onChange={e => setBillData({...billData, payment_status: e.target.checked ? 1 : 0, Expense_Date: ''})} style={{ transform: 'scale(1.2)' }} />
+                  <input type="checkbox" checked={billData.payment_status === 1} onChange={e => {
+                    setBillData({...billData, payment_status: e.target.checked ? 1 : 0, Expense_Date: ''});
+                    if (!e.target.checked) setReceiptFile(null); // เคลียร์ไฟล์รูปทิ้งถ้ากดยกเลิกการจ่าย
+                  }} style={{ transform: 'scale(1.2)' }} />
                   <span style={{fontWeight: 'bold', color: '#34495e'}}>ชำระเงินเรียบร้อยแล้ว</span>
                 </label>
 
+                {/* ✅ แสดงวันที่และบังคับแนบใบเสร็จ เฉพาะเมื่อติ๊กชำระเงินแล้วเท่านั้น */}
                 {billData.payment_status === 1 && (
-                  <div style={{ marginTop: '10px' }}>
-                    <label style={styles.label}>วันที่ชำระเงิน</label>
-                    <input type="date" required style={styles.input} value={billData.Expense_Date} onChange={e => setBillData({...billData, Expense_Date: e.target.value})}/>
+                  <div style={{ marginTop: '15px', padding: '15px', backgroundColor: '#F0FDF4', borderRadius: '8px', border: '1px dashed #BBF7D0' }}>
+                    <div style={{ marginBottom: '10px' }}>
+                      <label style={styles.label}>วันที่ชำระเงิน <span style={{color: 'red'}}>*</span></label>
+                      <input type="date" required style={styles.input} value={billData.Expense_Date} onChange={e => setBillData({...billData, Expense_Date: e.target.value})}/>
+                    </div>
+                    <div>
+                      <label style={styles.label}>ภาพใบเสร็จรับเงิน <span style={{color: 'red'}}>*</span></label>
+                      <input type="file" required accept="image/*" style={styles.input} onChange={e => setReceiptFile(e.target.files[0])} />
+                    </div>
                   </div>
                 )}
               </div>
 
-              <h4 style={{ margin: '10px 0 0 0', color: '#2C3E50' }}>รายการค่าใช้จ่าย</h4>
+              <h4 style={{ margin: '10px 0 0 0', color: '#2C3E50' }}>รายการค่าใช้จ่ายในบิลนี้</h4>
               {expenseItems.map((item, index) => (
                 <div key={index} style={{ padding: '15px', backgroundColor: '#FFFFFF', borderRadius: '8px', border: '1px solid #CBD5E1', position: 'relative' }}>
-                  
                   {expenseItems.length > 1 && (
                     <button type="button" onClick={() => handleRemoveItem(index)} style={{ position: 'absolute', top: '10px', right: '10px', background: '#e74c3c', color: 'white', border: 'none', borderRadius: '50%', width: '25px', height: '25px', cursor: 'pointer', fontWeight: 'bold' }}>X</button>
                   )}
-                  
-                  <h5 style={{ margin: '0 0 10px 0', color: '#64748B' }}>รายการที่ {index + 1}</h5>
                   
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
                     <div>
@@ -414,7 +454,6 @@ const Expenses = () => {
                         {categories.filter(cat => cat.is_active !== 0).map((cat) => (
                             <option key={cat.expenses_type_id} value={cat.expenses_type_id}>{cat.expenses_type}</option>
                         ))}
-                        <option value="request_new" style={{ color: '#e74c3c', fontWeight: 'bold' }}>หาไม่พบ? แจ้งแอดมินเพิ่มข้อมูล</option>
                       </select>
                     </div>
                     <div>
@@ -443,7 +482,7 @@ const Expenses = () => {
               ))}
 
               <button type="button" onClick={handleAddItem} style={{ padding: '10px', backgroundColor: '#F1F5F9', color: '#334155', border: '2px dashed #94A3B8', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
-                + เพิ่มรายการค่าใช้จ่าย
+                + เพิ่มรายการในบิลนี้
               </button>
 
               <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
@@ -454,53 +493,31 @@ const Expenses = () => {
           </div>
         </div>
       )}
-
-      {showCategoryModal && (
-        <div style={styles.modalOverlay} onClick={() => setShowCategoryModal(false)}>
-          <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ marginTop: 0, borderBottom: '2px solid #27ae60', paddingBottom: '10px', color: '#2c3e50' }}>เสนอเพิ่มประเภทรายจ่ายใหม่</h3>
-            <form onSubmit={handleAddCategory} style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '20px' }}>
-              <div>
-                <label style={styles.label}>1. หมวดหมู่รายจ่าย:</label>
-                <div style={{ display: 'flex', gap: '20px', marginTop: '10px' }}>
-                  <label style={styles.checkboxLabel}><input type="radio" name="expenseCategoryType" checked={expenseType === 'ชิ้นส่วน'} onChange={() => setExpenseType('ชิ้นส่วน')} style={{ transform: 'scale(1.3)' }}/> ชิ้นส่วน</label>
-                  <label style={styles.checkboxLabel}><input type="radio" name="expenseCategoryType" checked={expenseType === 'เอกสาร'} onChange={() => setExpenseType('เอกสาร')} style={{ transform: 'scale(1.3)' }}/> เอกสาร</label>
-                </div>
-              </div>
-              <div><label style={styles.label}>2. ชื่อประเภท:</label><input type="text" required value={expenseName} onChange={(e) => setExpenseName(e.target.value)} style={styles.input}/></div>
-              <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                <button type="submit" style={{...styles.submitBtn, backgroundColor: '#f39c12'}}>ส่งคำร้อง</button>
-                <button type="button" onClick={() => setShowCategoryModal(false)} style={styles.cancelBtn}>ยกเลิก</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
 
 const styles = {
-  topSection: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '20px', marginBottom: '25px' },
+  topSection: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px', marginBottom: '25px' },
   addExpenseBtn: { backgroundColor: '#2C3E50', color: 'white', border: 'none', padding: '12px 25px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' },
   tabContainer: { display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '5px' },
-  activeTabAll: { padding: '8px 20px', backgroundColor: '#2C3E50', color: 'white', border: 'none', borderRadius: '20px', fontWeight: 'bold', cursor: 'pointer', transition: '0.3s' },
-  activeTabUnpaid: { padding: '8px 20px', backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '20px', fontWeight: 'bold', cursor: 'pointer', transition: '0.3s' },
-  activeTabPaid: { padding: '8px 20px', backgroundColor: '#27ae60', color: 'white', border: 'none', borderRadius: '20px', fontWeight: 'bold', cursor: 'pointer', transition: '0.3s' },
-  inactiveTab: { padding: '8px 20px', backgroundColor: '#FFFFFF', color: '#64748b', border: '1px solid #CBD5E1', borderRadius: '20px', fontWeight: 'bold', cursor: 'pointer', transition: '0.3s' },
+  activeTabAll: { padding: '8px 20px', backgroundColor: '#2C3E50', color: 'white', border: 'none', borderRadius: '20px', fontWeight: 'bold', cursor: 'pointer' },
+  activeTabUnpaid: { padding: '8px 20px', backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '20px', fontWeight: 'bold', cursor: 'pointer' },
+  activeTabPaid: { padding: '8px 20px', backgroundColor: '#27ae60', color: 'white', border: 'none', borderRadius: '20px', fontWeight: 'bold', cursor: 'pointer' },
+  inactiveTab: { padding: '8px 20px', backgroundColor: '#FFFFFF', color: '#64748b', border: '1px solid #CBD5E1', borderRadius: '20px', fontWeight: 'bold', cursor: 'pointer' },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' },
   card: { backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 10px rgba(0,0,0,0.04)', transition: 'transform 0.2s' },
   categoryTag: { backgroundColor: '#F1F5F9', color: '#475569', padding: '5px 10px', borderRadius: '5px', fontSize: '12px', fontWeight: 'bold' },
-  editIconBtn: { background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', padding: '5px', borderRadius: '5px', transition: '0.2s' },
-  deleteIconBtn: { background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', padding: '5px', borderRadius: '5px', transition: '0.2s' },
+  editIconBtn: { background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', padding: '0 5px' },
+  deleteIconBtn: { background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', padding: '0 5px' },
   modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
   modalContent: { backgroundColor: 'white', padding: '30px', borderRadius: '12px', width: '90%', maxWidth: '450px', boxShadow: '0 5px 15px rgba(0,0,0,0.2)', maxHeight: '90vh', overflowY: 'auto' },
   label: { fontWeight: 'bold', color: '#34495e', fontSize: '14px', marginBottom: '5px', display: 'block' },
-  checkboxLabel: { display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '16px' },
   input: { width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #bdc3c7', fontSize: '16px', boxSizing: 'border-box' },
   submitBtn: { flex: 1, padding: '12px', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' },
   cancelBtn: { flex: 1, padding: '12px', backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' },
-  filterSelect: { padding: '10px 15px', borderRadius: '8px', border: '1px solid #CBD5E1', backgroundColor: '#FFFFFF', color: '#475569', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', outline: 'none', minWidth: '200px' }
+  filterSelect: { padding: '10px 15px', borderRadius: '8px', border: '1px solid #CBD5E1', backgroundColor: '#FFFFFF', color: '#475569', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', outline: 'none', minWidth: '200px' },
+  receiptLink: { display: 'inline-block', marginTop: '10px', padding: '5px 10px', backgroundColor: '#F1F5F9', color: '#3498db', borderRadius: '5px', textDecoration: 'none', fontSize: '13px', fontWeight: 'bold' }
 };
 
 export default Expenses;
