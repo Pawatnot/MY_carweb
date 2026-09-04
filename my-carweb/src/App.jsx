@@ -12,7 +12,8 @@ import Documents from './pages/Documents';
 import Expenses from './pages/Expenses';     
 import Notification from './pages/Notification';     
 import Schedules from './pages/Schedules';
-import ManageUsers from './pages/manageusers';    
+import ManageUsers from './pages/manageusers'; 
+import AdminSettings from './pages/AdminSettings';   
 
 // เรียกใช้ตัวช่วยที่เราเพิ่งสร้าง
 import PrivateRoute from './components/PrivateRoute';
@@ -48,6 +49,7 @@ function App() {
           <Route path="/Schedules" element={<Schedules />} /> 
           <Route path="/Notification" element={<Notification />} />  
           <Route path="/ManageUsers" element={<ManageUsers />} />
+          <Route path="/admin-settings" element={<AdminSettings />} />
         </Route>
 
       </Routes>

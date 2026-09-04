@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import bellIcon from '../assets/bell.png'; // ✅ 1. Import รูปกระดิ่ง
 
 const Navbar = () => {
@@ -19,6 +20,48 @@ const Navbar = () => {
     window.location.href = '/login'; 
   };
 
+// เอาไว้เก็บจำนวนการแจ้งเตือน
+  const [notiCount, setNotiCount] = useState(0);
+
+  useEffect(() => {
+    const fetchNotiCount = async () => {
+      const uId = localStorage.getItem('user_id');
+      const isAdmin = localStorage.getItem('is_admin');
+      if (!uId) return;
+
+      try {
+        let count = 0;
+        
+        // 1. นับแจ้งเตือนยานพาหนะ (<= 7 วัน)
+        const schRes = await axios.get('http://localhost:5000/schedules', { 
+          params: { user_id: uId, is_admin: isAdmin }
+        });
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const vehicleAlerts = schRes.data.filter(item => {
+          if (item.is_completed === 1) return false;
+          const expDate = new Date(item.Expiry_Date);
+          const diffDays = Math.ceil((expDate - today) / (1000 * 60 * 60 * 24));
+          return diffDays <= 7;
+        });
+        count += vehicleAlerts.length;
+
+        // 2. ถ้าเป็นแอดมิน นับคำร้องขอด้วย
+        if (isAdmin === '1') {
+          const reqRes = await axios.get('http://localhost:5000/notifications');
+          count += reqRes.data.length;
+        }
+
+        setNotiCount(count);
+      } catch (error) {
+        console.error("Error fetching badge count:", error);
+      }
+    };
+
+    fetchNotiCount();
+  }, []);
+
   return (
     <nav style={styles.nav}>
       {/* ฝั่งซ้ายว่างไว้ */}
@@ -30,11 +73,27 @@ const Navbar = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
             
             {/* 🔔 ปุ่มแจ้งเตือน (รูปกระดิ่ง) */}
-            <Link to="/notification" style={styles.iconBtn}>
-              <img src={bellIcon} alt="Notification" style={{ width: '24px', height: '24px' }} />
-              {/* จุดแดงแจ้งเตือน (สมมติว่ามี) */}
-              {/* <span style={styles.badge}>3</span> */}
-            </Link>
+        <Link to="/notification" style={{ ...styles.iconBtn, position: 'relative' }}>
+          <img src={bellIcon} alt="Notification" style={{ width: '24px', height: '24px' }} />
+          
+          {/* จุดแดงแจ้งเตือนของจริง (จะโชว์เมื่อมีเลข > 0) */}
+          {notiCount > 0 && (
+            <span style={{
+              position: 'absolute',
+              top: '-5px',
+              right: '-5px',
+              backgroundColor: '#DC2626',
+              color: 'white',
+              fontSize: '11px',
+              fontWeight: 'bold',
+              padding: '2px 6px',
+              borderRadius: '20px',
+              border: '2px solid white'
+            }}>
+              {notiCount}
+            </span>
+          )}
+        </Link>
 
             {/* 👤 User Profile Icon (คลิกไปหน้า Profile) */}
             <Link to="/profile" style={styles.profileLink}>

@@ -57,6 +57,12 @@ const Sidebar = () => {
                  จัดการผู้ใช้งาน
               </Link>
             </li>
+            <li>
+              <Link to="/admin-settings" style={isActive('/admin-settings') ? styles.activeLink : styles.link}>
+                ตั้งค่าระบบ
+              </Link>
+            </li>
+            
             {/* ถ้าน๊อตมีหน้าอื่นที่อยากให้เฉพาะแอดมินเห็น ก็เอามาใส่ในปีกกานี้ได้เลยครับ */}
           </>
         )}

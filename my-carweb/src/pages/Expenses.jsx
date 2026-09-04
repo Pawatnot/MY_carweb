@@ -7,10 +7,8 @@ const Expenses = () => {
   const [userId, setUserId] = useState(null);
   
   const [showCategoryModal, setShowCategoryModal] = useState(false); 
-  const [showManageCategoryModal, setShowManageCategoryModal] = useState(false); 
   const [showExpenseModal, setShowExpenseModal] = useState(false);   
   
-  // ✅ State สำหรับจัดการหน้าต่างแก้ไขข้อมูล
   const [showEditModal, setShowEditModal] = useState(false);
   const [editData, setEditData] = useState({
     Expenses_id: '',
@@ -74,35 +72,13 @@ const Expenses = () => {
 
   const handleAddCategory = async (e) => {
     e.preventDefault();
-    if (isAdmin) {
-      try {
-        await axios.post('http://localhost:5000/expense-categories', {
-          is_document: expenseType === 'เอกสาร' ? 1 : 0, 
-          expenses_type: expenseName 
-        });
-        alert("เพิ่มประเภทเรียบร้อย");
-        setShowCategoryModal(false);
-        setExpenseName('');
-        fetchCategories(); 
-      } catch (error) { alert("เกิดข้อผิดพลาด"); }
-    } else {
-      try {
-        const requestMsg = `ขอเพิ่มประเภทรายจ่ายใหม่: "${expenseName}" (หมวดหมู่: ${expenseType})`;
-        await axios.post('http://localhost:5000/notifications', { Message: requestMsg });
-        alert("ส่งคำร้องไปยังแอดมินเรียบร้อยแล้ว แอดมินจะดำเนินการตรวจสอบเร็วๆ นี้");
-        setShowCategoryModal(false);
-        setExpenseName('');
-      } catch (error) { alert("เกิดข้อผิดพลาดในการส่งคำร้อง"); }
-    }
-  };
-
-  const handleToggleCategoryActive = async (id, currentStatus) => {
     try {
-      await axios.put(`http://localhost:5000/expense-categories/${id}/toggle`, {
-        is_active: currentStatus === 1 || currentStatus === true || currentStatus === null ? 0 : 1
-      });
-      fetchCategories();
-    } catch (error) { alert("เกิดข้อผิดพลาดในการเปลี่ยนสถานะ"); }
+      const requestMsg = `ขอเพิ่มประเภทรายจ่ายใหม่: "${expenseName}" (หมวดหมู่: ${expenseType})`;
+      await axios.post('http://localhost:5000/notifications', { Message: requestMsg });
+      alert("ส่งคำร้องไปยังแอดมินเรียบร้อยแล้ว แอดมินจะดำเนินการตรวจสอบเร็วๆ นี้");
+      setShowCategoryModal(false);
+      setExpenseName('');
+    } catch (error) { alert("เกิดข้อผิดพลาดในการส่งคำร้อง"); }
   };
 
   const handleAddItem = () => setExpenseItems([...expenseItems, { expenses_type_id: '', Amount_of_money: '', Detail: '', isAutoSchedule: false, nextExpiryDate: '' }]);
@@ -146,11 +122,9 @@ const Expenses = () => {
     } catch (error) { alert("เกิดข้อผิดพลาดในการบันทึกข้อมูลบางรายการ"); }
   };
 
-  // ✅ ฟังก์ชันเปิดหน้าต่างแก้ไขข้อมูล (แก้ไขให้รองรับ String)
   const handleOpenEdit = (exp) => {
     setEditData({
       Expenses_id: exp.Expenses_id,
-      // แปลง ID เป็น String เพื่อให้ตรงกับ value ในช่อง <select>
       Vehicle_id: exp.Vehicle_id ? exp.Vehicle_id.toString() : '',
       expenses_type_id: exp.expenses_type_id ? exp.expenses_type_id.toString() : '',
       Amount_of_money: exp.Amount_of_money || '',
@@ -159,7 +133,6 @@ const Expenses = () => {
     setShowEditModal(true);
   };
 
-  // ✅ ฟังก์ชันบันทึกการแก้ไข
   const handleSaveEdit = async (e) => {
     e.preventDefault();
     try {
@@ -172,7 +145,6 @@ const Expenses = () => {
     }
   };
 
-  // ✅ ฟังก์ชันลบข้อมูล
   const handleDelete = async (id) => {
     if (window.confirm("คุณแน่ใจหรือไม่ว่าต้องการลบรายจ่ายนี้? (ข้อมูลจะถูกลบถาวร)")) {
       try {
@@ -219,7 +191,6 @@ const Expenses = () => {
     return d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
   };
 
-  // ส่วนคำนวณกราฟ
   const currentDate = new Date();
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
@@ -248,22 +219,6 @@ const Expenses = () => {
   return (
     <div style={{ padding: '30px', backgroundColor: '#F9F8F4', minHeight: '100vh', boxSizing: 'border-box' }}>
       
-      {isAdmin && (
-        <div style={styles.adminPanel}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <h4 style={{ margin: '0 0 5px 0', color: '#d35400' }}>ส่วนจัดการตัวเลือก (เฉพาะแอดมิน)</h4>
-              <p style={{ fontSize: '13px', color: '#7f8c8d', margin: 0 }}>เพิ่ม หรือ เปิด/ปิด สถานะประเภทรายจ่ายได้ทันที</p>
-            </div>
-            
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setShowManageCategoryModal(true)} style={styles.manageBtn}>จัดการข้อมูล</button>
-              <button onClick={() => setShowCategoryModal(true)} style={styles.adminBtn}>+ เพิ่มประเภทใหม่</button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div style={styles.topSection}>
         <h2 style={{ color: '#2C3E50', margin: 0 }}>ระบบบันทึกรายจ่าย</h2>
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
@@ -308,26 +263,22 @@ const Expenses = () => {
           {filteredExpenses.map(exp => (
             <div key={exp.Expenses_id} style={{ ...styles.card, borderLeft: exp.payment_status === 1 ? '5px solid #16A34A' : '5px solid #DC2626' }}>
               
-             {/* ปุ่มแก้ไข/ลบ */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <span style={styles.categoryTag}>{exp.expenses_type}</span>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   <span style={{ fontWeight: 'bold', fontSize: '18px', color: '#2C3E50', marginRight: '5px' }}>฿{exp.Amount_of_money}</span>
                   
-                  {/* ปุ่มแก้ไข (SVG ดินสอ) */}
                   <button onClick={() => handleOpenEdit(exp)} style={{...styles.editIconBtn, color: '#f39c12'}} title="แก้ไข">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                     </svg>
                   </button>
 
-                  {/* ปุ่มลบ (SVG ถังขยะ) */}
                   <button onClick={() => handleDelete(exp.Expenses_id)} style={{...styles.deleteIconBtn, color: '#e74c3c'}} title="ลบ">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                     </svg>
                   </button>
-
                 </div>
               </div>
 
@@ -354,9 +305,6 @@ const Expenses = () => {
         </div>
       )}
 
-      {/* ======================================================== */}
-      {/* ✅ หน้าต่าง Modal สำหรับ "แก้ไข" ข้อมูล */}
-      {/* ======================================================== */}
       {showEditModal && (
         <div style={styles.modalOverlay} onClick={() => setShowEditModal(false)}>
           <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
@@ -397,40 +345,6 @@ const Expenses = () => {
                 <button type="button" onClick={() => setShowEditModal(false)} style={styles.cancelBtn}>ยกเลิก</button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* (โค้ด Modal อื่นๆ ที่มีอยู่แล้ว ไม่มีการเปลี่ยนแปลง) */}
-      {showManageCategoryModal && isAdmin && (
-        <div style={styles.modalOverlay} onClick={() => setShowManageCategoryModal(false)}>
-          <div style={{...styles.modalContent, width: '450px'}} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-              <h3 style={{ margin: 0, color: '#2c3e50' }}>จัดการประเภทรายจ่าย</h3>
-              <button onClick={() => setShowManageCategoryModal(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>✖</button>
-            </div>
-            
-            <div style={{ maxHeight: '400px', overflowY: 'auto', paddingRight: '10px' }}>
-              {categories.length === 0 ? <p style={{textAlign: 'center'}}>ไม่มีข้อมูล</p> : null}
-              {categories.map(cat => {
-                const isActive = cat.is_active === 1 || cat.is_active === true || cat.is_active === null;
-                return (
-                  <div key={cat.expenses_type_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', marginBottom: '10px', backgroundColor: isActive ? '#f0fdf4' : '#f8f9fa', borderRadius: '8px', border: `1px solid ${isActive ? '#bbf7d0' : '#dee2e6'}` }}>
-                    <div>
-                      <strong style={{ display: 'block', color: '#2c3e50' }}>{cat.expenses_type}</strong>
-                      <span style={{ fontSize: '12px', color: '#7f8c8d' }}>หมวดหมู่: {cat.is_document === 1 ? 'เอกสาร' : 'ชิ้นส่วน'}</span>
-                    </div>
-                    
-                    <div onClick={() => handleToggleCategoryActive(cat.expenses_type_id, cat.is_active)} style={{ width: '64px', height: '32px', borderRadius: '32px', backgroundColor: isActive ? '#2ecc71' : '#e74c3c', position: 'relative', cursor: 'pointer', transition: 'background-color 0.3s ease', boxShadow: 'inset 0 1px 4px rgba(0,0,0,0.2)', flexShrink: 0 }}>
-                      <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'white', fontWeight: 'bold', fontSize: '14px', opacity: isActive ? 1 : 0, transition: 'opacity 0.3s' }}>✓</span>
-                      <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: 'white', fontWeight: 'bold', fontSize: '14px', opacity: isActive ? 0 : 1, transition: 'opacity 0.3s' }}>✕</span>
-                      <div style={{ width: '26px', height: '26px', backgroundColor: 'white', borderRadius: '50%', position: 'absolute', top: '3px', left: isActive ? '35px' : '3px', transition: 'left 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)', boxShadow: '0 2px 5px rgba(0,0,0,0.3)' }} />
-                    </div>
-
-                  </div>
-                );
-              })}
-            </div>
           </div>
         </div>
       )}
@@ -493,9 +407,9 @@ const Expenses = () => {
                     <div>
                       <label style={styles.label}>ประเภท</label>
                       <select required style={styles.input} value={item.expenses_type_id} onChange={e => {
-                          if (e.target.value === 'request_new') setShowCategoryModal(true);
-                          else handleItemChange(index, 'expenses_type_id', e.target.value);
-                        }}>
+                        if (e.target.value === 'request_new') setShowCategoryModal(true);
+                        else handleItemChange(index, 'expenses_type_id', e.target.value);
+                      }}>
                         <option value="">-- เลือก --</option>
                         {categories.filter(cat => cat.is_active !== 0).map((cat) => (
                             <option key={cat.expenses_type_id} value={cat.expenses_type_id}>{cat.expenses_type}</option>
@@ -544,7 +458,7 @@ const Expenses = () => {
       {showCategoryModal && (
         <div style={styles.modalOverlay} onClick={() => setShowCategoryModal(false)}>
           <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ marginTop: 0, borderBottom: '2px solid #27ae60', paddingBottom: '10px', color: '#2c3e50' }}>{isAdmin ? 'เพิ่มประเภทรายจ่าย (แอดมิน)' : 'เสนอเพิ่มประเภทรายจ่ายใหม่'}</h3>
+            <h3 style={{ marginTop: 0, borderBottom: '2px solid #27ae60', paddingBottom: '10px', color: '#2c3e50' }}>เสนอเพิ่มประเภทรายจ่ายใหม่</h3>
             <form onSubmit={handleAddCategory} style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '20px' }}>
               <div>
                 <label style={styles.label}>1. หมวดหมู่รายจ่าย:</label>
@@ -555,7 +469,7 @@ const Expenses = () => {
               </div>
               <div><label style={styles.label}>2. ชื่อประเภท:</label><input type="text" required value={expenseName} onChange={(e) => setExpenseName(e.target.value)} style={styles.input}/></div>
               <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                <button type="submit" style={{...styles.submitBtn, backgroundColor: isAdmin ? '#27ae60' : '#f39c12'}}>{isAdmin ? 'บันทึก' : 'ส่งคำร้อง'}</button>
+                <button type="submit" style={{...styles.submitBtn, backgroundColor: '#f39c12'}}>ส่งคำร้อง</button>
                 <button type="button" onClick={() => setShowCategoryModal(false)} style={styles.cancelBtn}>ยกเลิก</button>
               </div>
             </form>
@@ -568,9 +482,6 @@ const Expenses = () => {
 
 const styles = {
   topSection: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '20px', marginBottom: '25px' },
-  adminPanel: { backgroundColor: '#fef5e7', padding: '15px', borderRadius: '8px', marginBottom: '25px', border: '1px dashed #f39c12' },
-  adminBtn: { padding: '8px 12px', backgroundColor: '#e67e22', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' },
-  manageBtn: { padding: '8px 15px', backgroundColor: '#ecf0f1', border: '1px solid #bdc3c7', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold', color: '#2c3e50', fontSize: '13px' },
   addExpenseBtn: { backgroundColor: '#2C3E50', color: 'white', border: 'none', padding: '12px 25px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' },
   tabContainer: { display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '5px' },
   activeTabAll: { padding: '8px 20px', backgroundColor: '#2C3E50', color: 'white', border: 'none', borderRadius: '20px', fontWeight: 'bold', cursor: 'pointer', transition: '0.3s' },
@@ -580,13 +491,10 @@ const styles = {
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' },
   card: { backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 10px rgba(0,0,0,0.04)', transition: 'transform 0.2s' },
   categoryTag: { backgroundColor: '#F1F5F9', color: '#475569', padding: '5px 10px', borderRadius: '5px', fontSize: '12px', fontWeight: 'bold' },
-  
-  // ✅ สไตล์ปุ่มแก้ไขและปุ่มลบในกล่องการ์ด
   editIconBtn: { background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', padding: '5px', borderRadius: '5px', transition: '0.2s' },
   deleteIconBtn: { background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', padding: '5px', borderRadius: '5px', transition: '0.2s' },
-  
   modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
-  modalContent: { backgroundColor: 'white', padding: '30px', borderRadius: '12px', width: '90%', maxWidth: '450px', boxShadow: '0 5px 15px rgba(0,0,0,0.2)', maxHeight: '90vh',overflowY: 'auto' },
+  modalContent: { backgroundColor: 'white', padding: '30px', borderRadius: '12px', width: '90%', maxWidth: '450px', boxShadow: '0 5px 15px rgba(0,0,0,0.2)', maxHeight: '90vh', overflowY: 'auto' },
   label: { fontWeight: 'bold', color: '#34495e', fontSize: '14px', marginBottom: '5px', display: 'block' },
   checkboxLabel: { display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '16px' },
   input: { width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #bdc3c7', fontSize: '16px', boxSizing: 'border-box' },
