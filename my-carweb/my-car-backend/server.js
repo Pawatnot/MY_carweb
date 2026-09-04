@@ -678,6 +678,24 @@ app.put('/expense-categories/:id/toggle', (req, res) => {
     });
 });
 
+// API สำหรับโอนย้ายสิทธิ์ Admin
+app.put('/members/:id/transfer-admin', async (req, res) => {
+  const newAdminId = req.params.id;
+
+  try {
+    // 1. ลดระดับแอดมินเก่าทุกคนให้เป็น User (is_admin = 0)
+    await db.promise().query("UPDATE members SET is_admin = 0");
+
+    // 2. เลื่อนขั้นผู้ใช้ที่เลือกให้เป็น Admin (is_admin = 1)
+    await db.promise().query("UPDATE members SET is_admin = 1 WHERE User_id = ?", [newAdminId]);
+
+    res.json({ message: "โอนย้ายสิทธิ์ผู้ดูแลระบบสำเร็จ!" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "เกิดข้อผิดพลาดในการโอนย้ายสิทธิ์" });
+  }
+});
+
 // ============================================
 // เปิด Server
 // ============================================
