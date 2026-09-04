@@ -62,6 +62,24 @@ const Navbar = () => {
     fetchNotiCount();
   }, []);
 
+  // เช็คค่าจาก localStorage ถ้าไม่มีให้เริ่มที่ 'light'
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
+
+  useEffect(() => {
+    // ถ้าเป็น dark ให้เติม class 'dark-mode' ไปที่ <body>
+    if (theme === 'dark') {
+      document.body.classList.add('dark-mode');
+    } else {
+      document.body.classList.remove('dark-mode');
+    }
+    // บันทึกค่าลงในเครื่องผู้ใช้
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(theme === 'light' ? 'dark' : 'light');
+  };
+
   return (
     <nav style={styles.nav}>
       {/* ฝั่งซ้ายว่างไว้ */}
@@ -94,7 +112,6 @@ const Navbar = () => {
             </span>
           )}
         </Link>
-
             {/* 👤 User Profile Icon (คลิกไปหน้า Profile) */}
             <Link to="/profile" style={styles.profileLink}>
               <div style={styles.avatar}>

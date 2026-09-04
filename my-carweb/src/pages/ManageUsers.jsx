@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-
-
 const ManageUsers = () => {
   const [users, setUsers] = useState([]);
 
@@ -49,6 +47,25 @@ const ManageUsers = () => {
     }
   };
 
+  // ✅ ฟังก์ชันโอนสิทธิ์ Admin (เพิ่มการอัปเดต localStorage และรีเฟรชหน้าจอ)
+  const handleTransferAdmin = async (userId, userName) => {
+    if (window.confirm(`คุณแน่ใจหรือไม่ว่าต้องการโอนสิทธิ์ Admin ให้ "${userName}"?\n(สิทธิ์ Admin ของคุณจะถูกลดลงเป็น User ทันที)`)) {
+      try {
+        await axios.put(`http://localhost:5000/members/${userId}/transfer-admin`);
+        alert(`โอนสิทธิ์ Admin ให้ ${userName} สำเร็จ!`);
+        
+        // 1. อัปเดตสิทธิ์ของตัวเองในเครื่องให้เป็น User ทันที
+        localStorage.setItem('is_admin', '0');
+
+        // 2. รีเฟรชหน้าจอเพื่อล้างหน้าจัดการและซ่อนเมนูแอดมินทันที
+        window.location.reload(); 
+      } catch (error) {
+        console.error('Error transferring admin role:', error);
+        alert('เกิดข้อผิดพลาดในการโอนสิทธิ์ผู้ดูแลระบบ');
+      }
+    }
+  };
+
   return (
     <div style={styles.container}>
       <h2 style={{ color: '#2c3e50', marginBottom: '20px' }}>จัดการผู้ใช้งานในระบบ</h2>
@@ -66,7 +83,7 @@ const ManageUsers = () => {
           </thead>
           <tbody>
             {users.map((user) => {
-              // 💡 วิธีแก้: ดักจับทั้งกรณีที่เซิร์ฟเวอร์ส่งมาเป็น 1/0 หรือ true/false
+              // ดักจับทั้งกรณีที่เซิร์ฟเวอร์ส่งมาเป็น 1/0 หรือ true/false
               const isApproved = user.is_approved == 1 || user.is_approved === true;
               const isAdmin = user.is_admin == 1 || user.is_admin === true;
 
@@ -93,12 +110,23 @@ const ManageUsers = () => {
                         </button>
                       </div>
                     ) : (
-                      // ซ่อนปุ่มลบ ถ้าคนนั้นเป็น Admin 
-                      !isAdmin && (
-                        <button onClick={() => handleReject(user.User_id, user.Name)} style={styles.deleteBtn}>
-                          ลบผู้ใช้
-                        </button>
-                      )
+                      // ถ้าเป็น Admin แสดงป้ายกำกับ, ถ้าไม่ใช่ แสดงปุ่มโอนสิทธิ์และปุ่มลบ
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center' }}>
+                        {isAdmin ? (
+                          <span style={{ color: '#2563EB', fontWeight: 'bold', padding: '6px 12px', backgroundColor: '#EFF6FF', borderRadius: '5px' }}>
+                            ผู้ดูแลระบบ (Admin)
+                          </span>
+                        ) : (
+                          <>
+                            <button onClick={() => handleTransferAdmin(user.User_id, user.Name)} style={styles.adminBtn}>
+                              โอนสิทธิ์ Admin
+                            </button>
+                            <button onClick={() => handleReject(user.User_id, user.Name)} style={styles.deleteBtn}>
+                              ลบผู้ใช้
+                            </button>
+                          </>
+                        )}
+                      </div>
                     )}
                   </td>
                 </tr>
@@ -126,7 +154,8 @@ const styles = {
   td: { padding: '12px', color: '#2c3e50', fontSize: '14px', verticalAlign: 'middle' },
   approveBtn: { padding: '8px 15px', backgroundColor: '#2ecc71', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' },
   rejectBtn: { padding: '8px 15px', backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' },
-  deleteBtn: { padding: '6px 12px', backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }
+  deleteBtn: { padding: '6px 12px', backgroundColor: '#DC2626', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' },
+  adminBtn: { padding: '6px 12px', backgroundColor: '#3B82F6', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }
 };
 
 export default ManageUsers;
