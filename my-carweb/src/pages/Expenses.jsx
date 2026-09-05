@@ -28,7 +28,7 @@ const Expenses = () => {
   const [expenseName, setExpenseName] = useState('');        
 
   const [billData, setBillData] = useState({ Vehicle_id: '', payment_status: 0, Expense_Date: '' });
-  const [receiptFile, setReceiptFile] = useState(null); // ✅ State สำหรับเก็บไฟล์ใบเสร็จ
+  const [receiptFile, setReceiptFile] = useState(null); 
 
   const [expenseItems, setExpenseItems] = useState([
     { expenses_type_id: '', Amount_of_money: '', Detail: '', isAutoSchedule: false, nextExpiryDate: '' }
@@ -90,14 +90,12 @@ const Expenses = () => {
 
   const handleAddExpense = async (e) => {
     e.preventDefault();
-    // ✅ แก้ไข: บังคับแนบใบเสร็จ เฉพาะเมื่อสถานะเป็น "จ่ายแล้ว" (1) เท่านั้น
     if (billData.payment_status === 1 && !receiptFile) {
       return alert("กรุณาแนบภาพใบเสร็จเพื่อเป็นหลักฐานการชำระเงิน"); 
     }
 
     try {
       await Promise.all(expenseItems.map(async (item) => {
-        // ✅ เปลี่ยนเป็น FormData เพื่อส่งไฟล์รูป
         const formData = new FormData();
         formData.append('Vehicle_id', billData.Vehicle_id);
         formData.append('payment_status', billData.payment_status);
@@ -105,7 +103,7 @@ const Expenses = () => {
         formData.append('expenses_type_id', item.expenses_type_id);
         formData.append('Amount_of_money', item.Amount_of_money);
         formData.append('Detail', item.Detail);
-        formData.append('receipt_image', receiptFile);
+        if (receiptFile) formData.append('receipt_image', receiptFile);
 
         const expenseRes = await axios.post('http://localhost:5000/expenses', formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
@@ -172,19 +170,45 @@ const Expenses = () => {
   const togglePaidStatus = async (exp) => {
     if (exp.payment_status === 1) {
       try {
-        await axios.put(`http://localhost:5000/expenses/${exp.Expenses_id}/status`, { payment_status: 0, Expense_Date: null });
+        const formData = new FormData();
+        formData.append('payment_status', 0);
+        formData.append('Expense_Date', '');
+        
+        await axios.put(`http://localhost:5000/expenses/${exp.Expenses_id}/status`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
         fetchExpensesList(userId, isAdmin ? '1' : '0'); 
       } catch (error) { alert("เกิดข้อผิดพลาด"); }
     } else {
-      setPayingExpenseId(exp.Expenses_id); setPayingDate(''); setShowDateModal(true);
+      setPayingExpenseId(exp.Expenses_id); 
+      setPayingDate(''); 
+      setReceiptFile(null); 
+      setShowDateModal(true);
     }
   };
 
+  // ✅ แก้ไข: เพิ่มการเช็คว่าต้องมีไฟล์ก่อนถึงจะให้ Submit
   const handleConfirmPayment = async (e) => {
     e.preventDefault();
+    
+    // ดักจับ ถ้ายังไม่ได้เลือกไฟล์รูป ให้หยุดและแจ้งเตือน
+    if (!receiptFile) {
+      return alert("กรุณาแนบภาพสลิป/ใบเสร็จเพื่อยืนยันการชำระเงิน");
+    }
+
     try {
-      await axios.put(`http://localhost:5000/expenses/${payingExpenseId}/status`, { payment_status: 1, Expense_Date: payingDate });
-      setShowDateModal(false); fetchExpensesList(userId, isAdmin ? '1' : '0'); 
+      const formData = new FormData();
+      formData.append('payment_status', 1);
+      formData.append('Expense_Date', payingDate);
+      formData.append('receipt_image', receiptFile);
+
+      await axios.put(`http://localhost:5000/expenses/${payingExpenseId}/status`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      
+      setShowDateModal(false); 
+      setReceiptFile(null); 
+      fetchExpensesList(userId, isAdmin ? '1' : '0'); 
     } catch (error) { alert("เกิดข้อผิดพลาด"); }
   };
 
@@ -301,7 +325,6 @@ const Expenses = () => {
                 หมายเหตุ: {exp.Detail || '-'}
               </p>
 
-              {/* ✅ เพิ่มปุ่มดูใบเสร็จใน Card */}
               {exp.receipt_image && (
                 <a href={`http://localhost:5000/uploads/${exp.receipt_image}`} target="_blank" rel="noreferrer" style={styles.receiptLink}>
                   📄 ดูใบเสร็จรับเงิน
@@ -359,7 +382,6 @@ const Expenses = () => {
                 <input type="text" style={styles.input} value={editData.Detail} onChange={e => setEditData({...editData, Detail: e.target.value})}/>
               </div>
 
-              {/* ✅ ช่องอัปเดตใบเสร็จ */}
               <div>
                 <label style={styles.label}>รูปใบเสร็จ (เลือกใหม่เพื่อเปลี่ยน)</label>
                 {editData.current_receipt && !editReceiptFile && (
@@ -379,16 +401,26 @@ const Expenses = () => {
         </div>
       )}
 
-      {/* Modal ยืนยันชำระเงิน */}
+      {/* ✅ Modal ยืนยันชำระเงิน (อัปเดตเป็นบังคับแนบไฟล์) */}
       {showDateModal && (
-        <div style={styles.modalOverlay} onClick={() => setShowDateModal(false)}>
+        <div style={styles.modalOverlay} onClick={() => { setShowDateModal(false); setReceiptFile(null); }}>
           <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
             <h3 style={{ marginTop: 0, borderBottom: '2px solid #16A34A', paddingBottom: '10px', color: '#2C3E50' }}>ยืนยันการชำระเงิน</h3>
             <form onSubmit={handleConfirmPayment} style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
-              <div><input type="date" required value={payingDate} onChange={e => setPayingDate(e.target.value)} style={styles.input}/></div>
+              <div>
+                <label style={styles.label}>วันที่ชำระเงิน <span style={{color: 'red'}}>*</span></label>
+                <input type="date" required value={payingDate} onChange={e => setPayingDate(e.target.value)} style={styles.input}/>
+              </div>
+              
+              {/* ✅ เปลี่ยนข้อความและใส่ required */}
+              <div>
+                <label style={styles.label}>แนบสลิป/ใบเสร็จ <span style={{color: 'red'}}>*</span></label>
+                <input type="file" required accept="image/*" onChange={e => setReceiptFile(e.target.files[0])} style={styles.input} />
+              </div>
+
               <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                 <button type="submit" style={{...styles.submitBtn, backgroundColor: '#16A34A'}}>บันทึกสถานะ</button>
-                <button type="button" onClick={() => setShowDateModal(false)} style={styles.cancelBtn}>ยกเลิก</button>
+                <button type="button" onClick={() => { setShowDateModal(false); setReceiptFile(null); }} style={styles.cancelBtn}>ยกเลิก</button>
               </div>
             </form>
           </div>
@@ -397,7 +429,7 @@ const Expenses = () => {
 
       {/* Modal บันทึกรายจ่ายใหม่ */}
       {showExpenseModal && (
-        <div style={styles.modalOverlay} onClick={() => setShowExpenseModal(false)}>
+        <div style={styles.modalOverlay} onClick={() => { setShowExpenseModal(false); setReceiptFile(null); }}>
           <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
             <h3 style={{ marginTop: 0, borderBottom: '2px solid #3498db', paddingBottom: '10px' }}>บันทึกรายจ่าย</h3>
             <form onSubmit={handleAddExpense} style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
@@ -412,16 +444,14 @@ const Expenses = () => {
                   </select>
                 </div>
                 
-                {/* ✅ เลื่อน Checkbox ชำระเงินขึ้นมาไว้ตรงนี้ */}
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginTop: '10px' }}>
                   <input type="checkbox" checked={billData.payment_status === 1} onChange={e => {
                     setBillData({...billData, payment_status: e.target.checked ? 1 : 0, Expense_Date: ''});
-                    if (!e.target.checked) setReceiptFile(null); // เคลียร์ไฟล์รูปทิ้งถ้ากดยกเลิกการจ่าย
+                    if (!e.target.checked) setReceiptFile(null); 
                   }} style={{ transform: 'scale(1.2)' }} />
                   <span style={{fontWeight: 'bold', color: '#34495e'}}>ชำระเงินเรียบร้อยแล้ว</span>
                 </label>
 
-                {/* ✅ แสดงวันที่และบังคับแนบใบเสร็จ เฉพาะเมื่อติ๊กชำระเงินแล้วเท่านั้น */}
                 {billData.payment_status === 1 && (
                   <div style={{ marginTop: '15px', padding: '15px', backgroundColor: '#F0FDF4', borderRadius: '8px', border: '1px dashed #BBF7D0' }}>
                     <div style={{ marginBottom: '10px' }}>
@@ -487,7 +517,7 @@ const Expenses = () => {
 
               <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                 <button type="submit" style={{...styles.submitBtn, backgroundColor: '#3498db'}}>บันทึกข้อมูลทั้งหมด</button>
-                <button type="button" onClick={() => setShowExpenseModal(false)} style={styles.cancelBtn}>ยกเลิก</button>
+                <button type="button" onClick={() => { setShowExpenseModal(false); setReceiptFile(null); }} style={styles.cancelBtn}>ยกเลิก</button>
               </div>
             </form>
           </div>

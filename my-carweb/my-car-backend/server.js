@@ -396,7 +396,7 @@ app.get('/expenses', (req, res) => {
             ve.Detail,
             ve.Vehicle_id,
             ve.expenses_type_id,
-            ve.receipt_image, -- ✅ เพิ่มให้ดึงชื่อไฟล์ใบเสร็จมาแสดง
+            ve.receipt_image, -- ✅ ดึงชื่อไฟล์ใบเสร็จมาแสดง
             v.Brand, 
             v.Model, 
             v.vehicle_registration,
@@ -424,7 +424,7 @@ app.post('/expenses', upload.single('receipt_image'), (req, res) => {
     const { Vehicle_id, Amount_of_money, expenses_type_id, Expense_Date, payment_status, Detail } = req.body;
     const finalDate = Expense_Date ? Expense_Date : null;
     
-    // ✅ ดึงชื่อไฟล์ที่อัปโหลด (ถ้ามี)
+    // ดึงชื่อไฟล์ที่อัปโหลด (ถ้ามี)
     const receipt_image = req.file ? req.file.filename : null; 
     
     const sql = "INSERT INTO vehicle_expenses (Vehicle_id, Amount_of_money, expenses_type_id, Expense_Date, payment_status, Detail, receipt_image) VALUES (?, ?, ?, ?, ?, ?, ?)";
@@ -435,27 +435,50 @@ app.post('/expenses', upload.single('receipt_image'), (req, res) => {
     });
 });
 
-// 📌 (API นี้ไม่ต้องแก้ เพราะอัปเดตแค่สถานะ)
-app.put('/expenses/:id/status', (req, res) => {
+// ==============================================================
+// ✅ แก้ไข API ให้รองรับการอัปเดตสถานะพร้อมแนบสลิป/ใบเสร็จ
+// ==============================================================
+app.put('/expenses/:id/status', upload.single('receipt_image'), (req, res) => {
     const id = req.params.id;
     const { payment_status, Expense_Date } = req.body;
-    const finalDate = (payment_status === 1 && Expense_Date) ? Expense_Date : null;
+    
+    // แปลง payment_status เป็นตัวเลขก่อนเช็ค เพื่อความชัวร์
+    const finalDate = (Number(payment_status) === 1 && Expense_Date) ? Expense_Date : null;
+    
+    // เช็คว่ามีไฟล์รูปแนบมาด้วยไหม
+    const receipt_image = req.file ? req.file.filename : null;
 
-    const sql = "UPDATE vehicle_expenses SET payment_status = ?, Expense_Date = ? WHERE Expenses_id = ?";
-    db.query(sql, [payment_status, finalDate, id], (err, result) => {
-        if (err) return res.status(500).json({ message: "เกิดข้อผิดพลาดในการอัปเดต" });
-        res.json({ message: "อัปเดตสถานะสำเร็จ!" });
+    // เริ่มเขียนคำสั่ง SQL
+    let sql = "UPDATE vehicle_expenses SET payment_status = ?, Expense_Date = ?";
+    let params = [payment_status, finalDate];
+
+    // ถ้ามีการอัปโหลดรูปสลิปมาด้วย ให้อัปเดตคอลัมน์ receipt_image ด้วย
+    if (receipt_image) {
+        sql += ", receipt_image = ?";
+        params.push(receipt_image);
+    }
+
+    sql += " WHERE Expenses_id = ?";
+    params.push(id);
+
+    db.query(sql, params, (err, result) => {
+        if (err) {
+            console.error("Error updating payment status:", err);
+            return res.status(500).json({ message: "เกิดข้อผิดพลาดในการอัปเดต" });
+        }
+        res.json({ message: "อัปเดตสถานะพร้อมใบเสร็จสำเร็จ!" });
     });
 });
+// ==============================================================
 
 // ✅ เพิ่ม upload.single('receipt_image') สำหรับแก้ไขข้อมูลที่มีรูป
 app.put('/expenses/:id', upload.single('receipt_image'), (req, res) => {
     const id = req.params.id;
     const { Vehicle_id, Amount_of_money, expenses_type_id, Detail } = req.body;
     
-    const receipt_image = req.file ? req.file.filename : null; // ✅ ดึงชื่อไฟล์ใหม่ถ้ามีการอัปโหลด
+    const receipt_image = req.file ? req.file.filename : null; // ดึงชื่อไฟล์ใหม่ถ้ามีการอัปโหลด
 
-    // ✅ สร้างเงื่อนไข: ถ้ามีรูปใหม่ส่งมา ให้อัปเดตรูปด้วย ถ้าไม่มี ให้อัปเดตแค่ข้อมูลตัวหนังสือ
+    // สร้างเงื่อนไข: ถ้ามีรูปใหม่ส่งมา ให้อัปเดตรูปด้วย ถ้าไม่มี ให้อัปเดตแค่ข้อมูลตัวหนังสือ
     let sql = "UPDATE vehicle_expenses SET Vehicle_id = ?, Amount_of_money = ?, expenses_type_id = ?, Detail = ?";
     let params = [Vehicle_id, Amount_of_money, expenses_type_id, Detail];
 
@@ -482,6 +505,7 @@ app.delete('/expenses/:id', (req, res) => {
         res.json({ message: "ลบรายจ่ายสำเร็จ!" });
     });
 });
+
 // เพิ่ม API สำหรับแก้ไขชื่อประเภทรายจ่าย
 app.put('/expense-categories/:id', (req, res) => {
     const id = req.params.id;
