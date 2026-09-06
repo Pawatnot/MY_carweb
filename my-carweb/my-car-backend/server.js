@@ -3,11 +3,56 @@ const mysql = require('mysql2');
 const cors = require('cors');
 const multer = require('multer'); 
 const path = require('path');     
-const fs = require('fs'); // 💡 ย้าย fs มารวมไว้ด้านบนให้เป็นระเบียบ
+const fs = require('fs');
 const expenseTypesFilePath = './expenseTypes.json';
 const app = express();
 
 app.use(cors()); 
+
+// ==========================================
+// 🌟 ตั้งค่า LINE Bot ไว้ตรงนี้ (ก่อน app.use(express.json()))
+// ==========================================
+const line = require('@line/bot-sdk');
+
+const lineConfig = {
+  channelAccessToken: 'VxE/6iPI0Gkw4MmSrszhOzXgU1lLM+AIrlDoQNLhGhfYAnYqoochhUvyHk8T20MkIAveosPRAShg03d53muJvvapxvbhjewZxTomWRqqbjdTuhZPrkqydR1+QWaNJjjgHuFBVDjRwPtOwL8ETJyKxAdB04t89/1O/w1cDnyilFU=',
+  channelSecret: '2943a968507e09d64f482b45c22face7'
+};
+
+const lineClient = new line.messagingApi.MessagingApiClient({
+  channelAccessToken: lineConfig.channelAccessToken
+});
+
+// สร้าง API สำหรับรับข้อความจาก LINE (Webhook)
+app.post('/webhook', line.middleware(lineConfig), (req, res) => {
+  Promise
+    .all(req.body.events.map(handleLineEvent))
+    .then((result) => res.json(result))
+    .catch((err) => {
+      console.error(err);
+      res.status(500).end();
+    });
+});
+
+// ฟังก์ชันสำหรับตอบกลับ
+function handleLineEvent(event) {
+  if (event.type !== 'message' || event.message.type !== 'text') {
+    return Promise.resolve(null);
+  }
+
+  return lineClient.replyMessage({
+    replyToken: event.replyToken,
+    messages: [
+      {
+        type: 'text',
+        text: 'สวัสดีครับ บอทระบบจัดการรถเชื่อมต่อสำเร็จแล้ว!'
+      }
+    ]
+  });
+}
+// ==========================================
+
+// หลังจากนั้นค่อยใส่คำสั่งสำหรับ JSON และส่วนอื่นๆ ตามปกติ
 app.use(express.json()); 
 app.use('/uploads', express.static('uploads'));
 
@@ -17,14 +62,6 @@ const db = mysql.createConnection({
     user: 'root',      
     password: '',      
     database: 'vehicledb' 
-});
-
-db.connect(err => {
-    if (err) {
-        console.error('เชื่อมต่อฐานข้อมูลล้มเหลว:', err);
-        return;
-    }
-    console.log('เชื่อมต่อ MySQL สำเร็จแล้ว!');
 });
 
 // ตั้งค่า Multer (อัปโหลดรูปภาพ)
