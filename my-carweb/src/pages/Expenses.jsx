@@ -24,7 +24,6 @@ const Expenses = () => {
   const [expensesList, setExpensesList] = useState([]);
   
   const [activeTab, setActiveTab] = useState('all'); 
-  const [expenseType, setExpenseType] = useState('ชิ้นส่วน'); 
   const [expenseName, setExpenseName] = useState('');        
 
   const [billData, setBillData] = useState({ Vehicle_id: '', payment_status: 0, Expense_Date: '' });
@@ -71,12 +70,17 @@ const Expenses = () => {
     } catch (error) { console.error(error); }
   };
 
+  // ✅ ฟังก์ชันส่งคำร้องขอเพิ่มประเภทรายจ่ายใหม่
   const handleAddCategory = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:5000/notifications', { Message: `ขอเพิ่มประเภทรายจ่ายใหม่: "${expenseName}"` });
+      await axios.post('http://localhost:5000/notifications', { 
+        Type: 'ประเภทรายจ่าย',
+        Message: expenseName 
+      });
       alert("ส่งคำร้องไปยังแอดมินเรียบร้อยแล้ว");
-      setShowCategoryModal(false); setExpenseName('');
+      setShowCategoryModal(false); 
+      setExpenseName('');
     } catch (error) { alert("เกิดข้อผิดพลาดในการส่งคำร้อง"); }
   };
 
@@ -187,11 +191,8 @@ const Expenses = () => {
     }
   };
 
-  // ✅ แก้ไข: เพิ่มการเช็คว่าต้องมีไฟล์ก่อนถึงจะให้ Submit
   const handleConfirmPayment = async (e) => {
     e.preventDefault();
-    
-    // ดักจับ ถ้ายังไม่ได้เลือกไฟล์รูป ให้หยุดและแจ้งเตือน
     if (!receiptFile) {
       return alert("กรุณาแนบภาพสลิป/ใบเสร็จเพื่อยืนยันการชำระเงิน");
     }
@@ -401,7 +402,7 @@ const Expenses = () => {
         </div>
       )}
 
-      {/* ✅ Modal ยืนยันชำระเงิน (อัปเดตเป็นบังคับแนบไฟล์) */}
+      {/* Modal ยืนยันชำระเงิน */}
       {showDateModal && (
         <div style={styles.modalOverlay} onClick={() => { setShowDateModal(false); setReceiptFile(null); }}>
           <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
@@ -412,7 +413,6 @@ const Expenses = () => {
                 <input type="date" required value={payingDate} onChange={e => setPayingDate(e.target.value)} style={styles.input}/>
               </div>
               
-              {/* ✅ เปลี่ยนข้อความและใส่ required */}
               <div>
                 <label style={styles.label}>แนบสลิป/ใบเสร็จ <span style={{color: 'red'}}>*</span></label>
                 <input type="file" required accept="image/*" onChange={e => setReceiptFile(e.target.files[0])} style={styles.input} />
@@ -477,13 +477,23 @@ const Expenses = () => {
                     <div>
                       <label style={styles.label}>ประเภท</label>
                       <select required style={styles.input} value={item.expenses_type_id} onChange={e => {
-                        if (e.target.value === 'request_new') setShowCategoryModal(true);
-                        else handleItemChange(index, 'expenses_type_id', e.target.value);
+                        // ✅ ถ้าเลือกอันล่างสุด ให้เด้ง Modal ขอเพิ่มหมวดหมู่
+                        if (e.target.value === 'request_new') {
+                          setShowCategoryModal(true);
+                        } else {
+                          handleItemChange(index, 'expenses_type_id', e.target.value);
+                        }
                       }}>
                         <option value="">-- เลือก --</option>
                         {categories.filter(cat => cat.is_active !== 0).map((cat) => (
                             <option key={cat.expenses_type_id} value={cat.expenses_type_id}>{cat.expenses_type}</option>
                         ))}
+                        {/* ✅ เพิ่มตัวเลือก "หาไม่พบ แจ้งแอดมิน" กลับมาแล้วครับ! */}
+                        {!isAdmin && (
+                          <option value="request_new" style={{ fontWeight: 'bold', color: '#e74c3c' }}>
+                            หาไม่พบ? แจ้งแอดมินเพิ่มข้อมูล
+                          </option>
+                        )}
                       </select>
                     </div>
                     <div>
@@ -523,6 +533,31 @@ const Expenses = () => {
           </div>
         </div>
       )}
+
+      {/* ✅ เพิ่มกล่อง Modal สำหรับพิมพ์แจ้งแอดมินขอเพิ่มประเภทรายจ่าย */}
+      {showCategoryModal && (
+        <div style={styles.modalOverlay} onClick={() => setShowCategoryModal(false)}>
+          <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0, color: '#c0392b' }}>แจ้งเพิ่มประเภทรายจ่ายใหม่</h3>
+            <form onSubmit={handleAddCategory}>
+              <input 
+                type="text" 
+                required 
+                value={expenseName} 
+                onChange={(e) => setExpenseName(e.target.value)} 
+                placeholder="เช่น ค่าล้างรถ, ค่าฟิล์มกรองแสง" 
+                style={{...styles.input, marginBottom: '20px'}} 
+                autoFocus 
+              />
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                <button type="button" onClick={() => setShowCategoryModal(false)} style={styles.cancelBtn}>ยกเลิก</button>
+                <button type="submit" style={{...styles.saveBtn, backgroundColor: '#c0392b'}}>ส่งคำขอ</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
@@ -546,6 +581,7 @@ const styles = {
   input: { width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #bdc3c7', fontSize: '16px', boxSizing: 'border-box' },
   submitBtn: { flex: 1, padding: '12px', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' },
   cancelBtn: { flex: 1, padding: '12px', backgroundColor: '#e74c3c', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' },
+  saveBtn: { padding: '8px 15px', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' },
   filterSelect: { padding: '10px 15px', borderRadius: '8px', border: '1px solid #CBD5E1', backgroundColor: '#FFFFFF', color: '#475569', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', outline: 'none', minWidth: '200px' },
   receiptLink: { display: 'inline-block', marginTop: '10px', padding: '5px 10px', backgroundColor: '#F1F5F9', color: '#3498db', borderRadius: '5px', textDecoration: 'none', fontSize: '13px', fontWeight: 'bold' }
 };

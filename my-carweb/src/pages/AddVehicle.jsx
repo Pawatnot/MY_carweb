@@ -15,10 +15,11 @@ const AddVehicle = () => {
   
   const [isNotifyModalOpen, setIsNotifyModalOpen] = useState(false);
   const [notifyText, setNotifyText] = useState('');
+  const [notifyType, setNotifyType] = useState(''); // ✅ State สำหรับจำว่าขอเพิ่มยี่ห้อหรือรุ่น
 
-  // ✅ แยก State ทะเบียน กับ จังหวัด ออกจากกันเพื่อให้กรอกง่าย
+  // แยก State ทะเบียน กับ จังหวัด ออกจากกันเพื่อให้กรอกง่าย
   const [regNumber, setRegNumber] = useState('');
-  const [regProvince, setRegProvince] = useState('กรุงเทพมหานคร'); // ตั้งค่าเริ่มต้นเป็นกรุงเทพฯ (เปลี่ยนได้ตามสะดวก)
+  const [regProvince, setRegProvince] = useState('กรุงเทพมหานคร'); 
 
   const [formData, setFormData] = useState({
     Brand: '', Model: '', Vehicle_Type: 'รถเก๋ง'
@@ -55,6 +56,7 @@ const AddVehicle = () => {
   const handleBrandSelect = (e) => {
     const val = e.target.value;
     if (val === 'NOTIFY_ADMIN') {
+      setNotifyType('ยี่ห้อรถ'); // ✅ ระบุหมวดหมู่ว่าเป็นยี่ห้อรถ
       setIsNotifyModalOpen(true);
       setFormData({...formData, Brand: '', Model: ''});
     } else {
@@ -66,6 +68,7 @@ const AddVehicle = () => {
   const handleModelSelect = (e) => {
     const val = e.target.value;
     if (val === 'NOTIFY_ADMIN') {
+      setNotifyType('รุ่นรถ'); // ✅ ระบุหมวดหมู่ว่าเป็นรุ่นรถ
       setIsNotifyModalOpen(true);
       setFormData({...formData, Model: ''});
     } else {
@@ -79,9 +82,15 @@ const AddVehicle = () => {
   const handleSendNotification = async () => {
     if (!notifyText.trim()) return alert('กรุณาพิมพ์สิ่งที่ต้องการให้แอดมินเพิ่ม');
     try {
-      await axios.post('http://localhost:5000/notifications', { Message: notifyText });
+      // ✅ เพิ่มการส่ง Type เข้าไปที่ Backend
+      await axios.post('http://localhost:5000/notifications', { 
+        Type: notifyType, 
+        Message: notifyText 
+      });
       alert('ส่งคำขอเรียบร้อย แอดมินจะดำเนินการเร็วๆ นี้');
-      setIsNotifyModalOpen(false); setNotifyText('');
+      setIsNotifyModalOpen(false); 
+      setNotifyText('');
+      setNotifyType(''); // เคลียร์ค่า
     } catch (error) { alert('เกิดข้อผิดพลาดในการส่งแจ้งเตือน'); }
   };
 
@@ -89,7 +98,7 @@ const AddVehicle = () => {
     e.preventDefault();
     if (!userId) return alert("ไม่พบข้อมูลผู้ใช้งาน");
     
-    // ✅ นำเลขทะเบียนมารวมกับจังหวัดเป็นสตริงเดียว เช่น "1กก 1234 กรุงเทพมหานคร"
+    // นำเลขทะเบียนมารวมกับจังหวัดเป็นสตริงเดียว
     const fullRegistration = `${regNumber.trim()} ${regProvince}`;
 
     try {
@@ -97,7 +106,7 @@ const AddVehicle = () => {
       data.append('User_id', userId); 
       data.append('Brand', formData.Brand);
       data.append('Model', formData.Model);
-      data.append('vehicle_registration', fullRegistration); // ส่งค่าที่รวมแล้วเข้า Backend
+      data.append('vehicle_registration', fullRegistration); 
       data.append('Vehicle_Type', formData.Vehicle_Type);
       if (selectedFile) data.append('image', selectedFile); 
 
@@ -129,7 +138,7 @@ const AddVehicle = () => {
           </select>
         </div>
 
-        {/* ✅ ช่องกรอกทะเบียนรถและเลือกจังหวัดแบบรวมในคอลัมน์เดียว */}
+        {/* ช่องกรอกทะเบียนรถและเลือกจังหวัดแบบรวมในคอลัมน์เดียว */}
         <div style={styles.formGroup}>
           <label style={styles.label}>ทะเบียนรถและจังหวัด</label>
           <div style={{ display: 'flex', gap: '10px' }}>
@@ -176,10 +185,17 @@ const AddVehicle = () => {
       {isNotifyModalOpen && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalContent}>
-            <h3 style={{ marginTop: 0, color: '#c0392b' }}>แจ้งเพิ่มข้อมูลรถ</h3>
-            <textarea value={notifyText} onChange={(e) => setNotifyText(e.target.value)} placeholder="ระบุยี่ห้อและรุ่นที่ต้องการ" style={{...styles.modalInput, height: '80px'}} autoFocus />
+            {/* ✅ ดึงค่า notifyType มาแสดงให้ชัดเจนว่ากำลังขอเพิ่มอะไร */}
+            <h3 style={{ marginTop: 0, color: '#c0392b' }}>แจ้งเพิ่มข้อมูล{notifyType}</h3>
+            <textarea 
+              value={notifyText} 
+              onChange={(e) => setNotifyText(e.target.value)} 
+              placeholder={notifyType === 'รุ่นรถ' ? `ระบุชื่อรุ่นของยี่ห้อ ${formData.Brand} ที่ต้องการ` : "ระบุยี่ห้อที่ต้องการ"} 
+              style={{...styles.modalInput, height: '80px'}} 
+              autoFocus 
+            />
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-              <button type="button" onClick={() => setIsNotifyModalOpen(false)} style={styles.cancelBtn}>ยกเลิก</button>
+              <button type="button" onClick={() => { setIsNotifyModalOpen(false); setNotifyType(''); }} style={styles.cancelBtn}>ยกเลิก</button>
               <button onClick={handleSendNotification} style={{...styles.saveBtn, backgroundColor: '#c0392b'}}>ส่งคำขอ</button>
             </div>
           </div>

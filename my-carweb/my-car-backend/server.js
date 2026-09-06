@@ -614,7 +614,8 @@ app.delete('/schedules/:id', (req, res) => {
 const requestsFilePath = path.join(__dirname, 'requests.json');
 
 app.post('/notifications', (req, res) => {
-    const { Message } = req.body;
+    // ✅ 1. รับค่า Type (หมวดหมู่) เพิ่มเข้ามา
+    const { Message, Type } = req.body; 
     
     if (!Message) {
         return res.status(400).json({ message: "ข้อมูลไม่ครบถ้วน" });
@@ -629,6 +630,7 @@ app.post('/notifications', (req, res) => {
 
         const newRequest = {
             id: Date.now(),
+            type: Type || 'ทั่วไป', // ✅ 2. บันทึกหมวดหมู่ลงไป (ถ้าไม่ส่งมาให้เป็นคำว่า 'ทั่วไป')
             message: Message,
             status: "รอตรวจสอบ",
             date: new Date().toLocaleString('th-TH')

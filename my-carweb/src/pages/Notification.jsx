@@ -5,9 +5,9 @@ import { useNavigate } from 'react-router-dom';
 const Notification = () => {
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
-  const [adminRequests, setAdminRequests] = useState([]); // State สำหรับเก็บคำร้องของแอดมิน
+  const [adminRequests, setAdminRequests] = useState([]); 
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('vehicle'); // ควบคุมแท็บ
+  const [activeTab, setActiveTab] = useState('vehicle'); 
   
   const isAdmin = localStorage.getItem('is_admin') === '1';
 
@@ -74,7 +74,7 @@ const Notification = () => {
   const handleDeleteRequest = async (id) => {
     try {
       await axios.delete(`http://localhost:5000/notifications/${id}`);
-      fetchAdminRequests(); // ดึงข้อมูลใหม่หลังจากลบ
+      fetchAdminRequests(); 
     } catch (error) {
       alert("ลบคำร้องไม่สำเร็จ");
     }
@@ -119,7 +119,7 @@ const Notification = () => {
         {isLoading ? (
           <div style={styles.emptyText}>กำลังโหลดข้อมูล...</div>
         ) : activeTab === 'vehicle' ? (
-          /* แท็บยานพาหนะ (โค้ดเดิมของคุณ) */
+          /* แท็บยานพาหนะ */
           notifications.length === 0 ? (
             <div style={styles.emptyContainer}>
               <div style={styles.emptyIcon}></div>
@@ -182,6 +182,10 @@ const Notification = () => {
                       </span>
                       <span style={{...styles.statusTag, backgroundColor: '#0284C7'}}>
                         {req.status}
+                      </span>
+                      {/* ✅ สิ่งที่แก้: เพิ่มป้ายกำกับบอกหมวดหมู่ตรงนี้ */}
+                      <span style={{...styles.statusTag, backgroundColor: '#8B5CF6'}}>
+                        {req.type || 'ทั่วไป'}
                       </span>
                     </div>
                     <div style={styles.detailText}>
