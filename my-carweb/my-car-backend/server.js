@@ -35,20 +35,26 @@ app.post('/webhook', line.middleware(lineConfig), (req, res) => {
 });
 
 // ฟังก์ชันสำหรับตอบกลับ
-function handleLineEvent(event) {
-  if (event.type !== 'message' || event.message.type !== 'text') {
-    return Promise.resolve(null);
-  }
+// function handleLineEvent(event) {
+//   if (event.type !== 'message' || event.message.type !== 'text') {
+//     return Promise.resolve(null);
+//   }
 
-  return lineClient.replyMessage({
-    replyToken: event.replyToken,
-    messages: [
-      {
-        type: 'text',
-        text: 'สวัสดีครับ บอทระบบจัดการรถเชื่อมต่อสำเร็จแล้ว!'
-      }
-    ]
-  });
+//   return lineClient.replyMessage({
+//     replyToken: event.replyToken,
+//     messages: [
+//       {
+//         type: 'text',
+//         text: 'สวัสดีครับ บอทระบบจัดการรถเชื่อมต่อสำเร็จแล้ว!'
+//       }
+//     ]
+//   });
+// }
+
+// ฟังก์ชันรับ Event จาก LINE (ตอนนี้ตั้งให้เงียบไว้ก่อน)
+function handleLineEvent(event) {
+  // ไม่ต้องทำอะไร ให้ Return ผ่านไปเลย บอทจะอ่านข้อความแต่ไม่ตอบ
+  return Promise.resolve(null);
 }
 // ==========================================
 
@@ -757,6 +763,54 @@ app.put('/members/:id/transfer-admin', async (req, res) => {
     console.error(error);
     res.status(500).json({ error: "เกิดข้อผิดพลาดในการโอนย้ายสิทธิ์" });
   }
+});
+
+// ==========================================
+// 🕒 ระบบตั้งเวลาแจ้งเตือนอัตโนมัติ (Cron Job)
+// ==========================================
+const cron = require('node-cron');
+
+// ตั้งเวลาให้ทำงานทุกวัน เวลา 08:00 น. (เช้า) 
+// (ถ้าอยากให้รันทุกๆ 1 นาทีเพื่อทดสอบ ให้เปลี่ยน '0 8 * * *' เป็น '* * * * *')
+cron.schedule('0 8 * * *', async () => {
+    console.log('🔍 [Cron Job] กำลังตรวจสอบกำหนดการแจ้งเตือนประจำวัน...');
+    
+    try {
+        // ค้นหารายการที่ครบกำหนด "วันนี้" และยังไม่ได้จัดการ (is_completed = 0 หรือ NULL)
+        const sql = `
+            SELECT s.Item_Name, s.Expiry_Date, v.vehicle_registration 
+            FROM vehicle_schedules s
+            JOIN vehicle v ON s.Vehicle_id = v.Vehicle_id
+            WHERE DATE(s.Expiry_Date) = CURDATE() 
+            AND (s.is_completed = 0 OR s.is_completed IS NULL)
+        `;
+        
+        // ใช้ db.promise() เพื่อรอผลลัพธ์จาก MySQL
+        const [rows] = await db.promise().query(sql);
+
+        if (rows.length > 0) {
+            // ถ้ามีรายการครบกำหนด ให้สร้างข้อความแจ้งเตือน
+            let alertMessage = '🔔 แจ้งเตือนกำหนดการวันนี้!\n\n';
+            
+            rows.forEach((row, index) => {
+                alertMessage += `${index + 1}. รถทะเบียน: ${row.vehicle_registration}\n`;
+                alertMessage += `   รายการ: ${row.Item_Name}\n`;
+            });
+            
+            alertMessage += '\nอย่าลืมตรวจสอบและจัดการนะครับ 🚗🛠️';
+
+            // ส่งข้อความเข้า LINE (Broadcast)
+            await lineClient.broadcast({
+                messages: [{ type: 'text', text: alertMessage }]
+            });
+            
+            console.log('✅ [Cron Job] ส่งแจ้งเตือนเข้า LINE สำเร็จ!');
+        } else {
+            console.log('➖ [Cron Job] วันนี้ไม่มีรายการครบกำหนดครับ');
+        }
+    } catch (err) {
+        console.error('❌ [Cron Job] เกิดข้อผิดพลาดในระบบแจ้งเตือนอัตโนมัติ:', err);
+    }
 });
 
 // ============================================
